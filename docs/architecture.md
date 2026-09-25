@@ -65,7 +65,7 @@ backend/
     jobs/                   # queue.py (enqueue/claim/finish), worker.py, handlers.py
     schemas/                # Pydantic models: api bodies + LLM outputs
   prompts/                  # <purpose>_v<N>.md, never edited in place
-  migrations/               # Alembic
+  migrations/               # numbered plain-SQL files (001_initial.sql ...)
   tests/
     unit/  fixtures/  golden/nsdf/
 docs/                       # this folder
@@ -78,9 +78,9 @@ docker-compose.yml          # postgres + pgvector for local dev
 | ------------------ | ------------------------------ | -------------------------------------- |
 | API                | FastAPI + uvicorn              |                                        |
 | Settings           | pydantic-settings              | reads `.env`                           |
-| DB                 | SQLAlchemy 2.0, psycopg 3      |                                        |
+| DB                 | psycopg 3, plain SQL           | no ORM; queries live in app/db/        |
 | Vectors            | pgvector (python)              | phase 2                                |
-| Migrations         | Alembic                        |                                        |
+| Migrations         | `run.py migrate`               | applies migrations/*.sql in order      |
 | PDF text + render  | pypdfium2                      | Apache/BSD licence (avoid AGPL PyMuPDF) |
 | AWS                | boto3                          | S3, Textract, bedrock-runtime          |
 | Excel export       | openpyxl                       |                                        |

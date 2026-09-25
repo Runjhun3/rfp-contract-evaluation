@@ -40,7 +40,7 @@ docker compose up -d db         # Postgres 16 + pgvector on localhost:5432
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python run.py migrate           # alembic upgrade head
+python run.py migrate           # applies backend/migrations/*.sql
 python run.py api               # http://localhost:8000/docs
 python run.py worker            # in a second terminal
 ```

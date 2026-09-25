@@ -2,6 +2,7 @@
 -> evidence + copy checks -> criterion calls -> arithmetic check -> scores.
 Every step writes JSON into run_dir and is skipped on re-run if already done.
 """
+import uuid
 from pathlib import Path
 
 from app.config import Settings
@@ -20,13 +21,12 @@ from app.llm.prompts import versions
 from app.schemas.llm import CriterionResult, ItemResult
 from app.schemas.records import (CopyGroup, Criterion, CriterionScore, EvidenceCheck, Item,
                                  Page, RunContext)
-from app.storage import cached, safe_name, write
+from app.storage import cached, safe_name, sha256_file, write
 
 
 def run(bid_pdf: Path, ctx: RunContext, criteria: list[Criterion], block: str,
         run_dir: Path, settings: Settings, llm: LlmClient) -> list[CriterionScore]:
-    write(run_dir / "run.json", {"context": ctx.model_dump(mode="json"),
-                                 "model": settings.claude_model, "prompts": versions()})
+    cached(run_dir / "run.json", dict, lambda: _run_meta(bid_pdf, ctx, criteria, block, settings))
     pages = cached(run_dir / "pages_text.json", list[Page], lambda: read_pages(bid_pdf))
     pages = cached(run_dir / "pages_ocr.json", list[Page],
                    lambda: ocr_pages(bid_pdf, pages, settings, safe_name(ctx.bidder)))
@@ -44,6 +44,15 @@ def run(bid_pdf: Path, ctx: RunContext, criteria: list[Criterion], block: str,
               for c in criteria]
     write(run_dir / "scores.json", scores)
     return scores
+
+
+def _run_meta(bid_pdf: Path, ctx: RunContext, criteria: list[Criterion], block: str,
+              settings: Settings) -> dict:
+    """Snapshot of everything the run depended on (audit + loading into the DB)."""
+    return {"run_id": str(uuid.uuid4()), "context": ctx.model_dump(mode="json"),
+            "bid_file": bid_pdf.name, "bid_sha256": sha256_file(bid_pdf),
+            "model": settings.claude_model, "prompts": versions(),
+            "criteria": [c.model_dump(mode="json") for c in criteria], "criteria_block": block}
 
 
 def _item_results(items: list[Item], pages: dict[int, Page], ctx: RunContext, system: str,

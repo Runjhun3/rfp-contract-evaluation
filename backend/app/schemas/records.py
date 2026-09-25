@@ -20,6 +20,7 @@ class Criterion(BaseModel):
     title: str
     meaning: str
     kind: Kind
+    rfp_text: str = ""
     max_marks: Decimal
     max_items: int | None = None
     allowed_item_marks: list[Decimal]

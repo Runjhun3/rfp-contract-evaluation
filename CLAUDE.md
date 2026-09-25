@@ -15,6 +15,7 @@ index. Read the file that matches your task before changing anything.
 | docs/testing.md                  | adding tests or checking accuracy against answer keys  |
 | docs/security.md                 | handling secrets, bid files, CVs or AWS access         |
 | docs/local-setup.md              | setting up a machine or running the service            |
+| docs/deploy-ec2.md               | hosting the service + Postgres on one EC2 VM           |
 | docs/decisions.md                | making a choice that future readers need to know about |
 
 Living design doc (discussion + history):
@@ -32,10 +33,11 @@ https://claude.ai/code/artifact/faf974c3-74c4-4865-8160-4fdec63be5c0
 6. No secret in code, logs or git. `.env` is git-ignored.
 
 ## Glossary
-- **Tender**: one GeM bid (e.g. GEM/2026/B/7401395). The root of all data.
+- **Project (UI) = tender (DB)**: one GeM tender cycle (e.g. GEM/2026/B/7401395).
+  The root of all data.
 - **Criterion**: one scoring line from RFP Annexure III (A.1, A.2, B.1 ...).
 - **Submission**: one bidder's upload for one tender.
-- **Project (item)**: one project section or one CV inside a bid, submitted
+- **Bid item** (`bid_item`): one project section or one CV inside a bid, submitted
   under one criterion. A project repeated under A.1/A.2/A.3 is three items
   (copies) linked by `copy_group`; Python checks copies agree.
 - **Claim**: an item judged under its criterion in one run.

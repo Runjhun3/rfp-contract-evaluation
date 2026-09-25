@@ -54,7 +54,8 @@ CLAUDE.md is the index that points here.
 
 ## Python
 - Python 3.12, type hints on every function, `ruff` + `ruff format` clean.
-- Pydantic v2 for all API bodies and LLM outputs. SQLAlchemy 2.0 typed ORM.
+- Pydantic v2 for all API bodies and LLM outputs. Database access is plain SQL
+  with psycopg 3, only inside `app/db/`; always `%s` parameters, never string formatting.
 - No business logic in API route files. Routes call one service function.
 - boto3 clients are created once in `app/aws/clients.py`. Nobody else builds
   a client.
@@ -65,8 +66,9 @@ CLAUDE.md is the index that points here.
 - Raise specific exceptions. Never `except Exception: pass`.
 
 ## Database
-- All schema changes go through Alembic migrations. One migration per change.
-  Never edit a merged migration.
+- All schema changes go through a new numbered file in `backend/migrations/`
+  (e.g. `002_add_x.sql`), applied by `python run.py migrate`. Never edit a
+  merged migration.
 - Table and column names are snake_case singular (`bid_submission`).
 - Every FK is indexed. Every table has `created_at timestamptz default now()`.
 - Enum-like columns are `text` with a CHECK constraint, not PG enums, so

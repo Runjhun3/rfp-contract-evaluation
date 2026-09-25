@@ -3,6 +3,17 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-021 "Project" means the evaluation cycle; bid sections are `bid_item` (2026-09-25)
+In the UI a user creates a Project = one tender cycle (table `tender`). The
+table that held one credential/CV inside a bid is renamed `bid_item` to avoid
+the clash.
+
+## D-020 Plain SQL migrations + psycopg instead of SQLAlchemy/Alembic (2026-09-25)
+Supersedes the DB part of D-010. ~20 tables, queries in one folder, and a DBA
+at the ministry who should be able to read exactly what runs. Plain SQL files
+are simpler and were tested directly on PostgreSQL 16. Revisit if the query
+code grows past what one folder holds comfortably.
+
 ## D-019 NSDF golden run uses bid date 2026-05-07 (2026-09-25)
 GeM shows the original end date 14-04-2026; it was extended and bids were
 opened on 07-05-2026. The final closing date should be confirmed from GeM;

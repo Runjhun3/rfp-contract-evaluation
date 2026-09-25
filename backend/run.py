@@ -6,6 +6,8 @@
       --out runs/nsdf/deloitte
   python run.py compare --run runs/nsdf/deloitte --bidder Deloitte \
       --expected tests/golden/nsdf/expected_scores.json
+  python run.py migrate                      # apply backend/migrations/*.sql
+  python run.py save-run --run runs/nsdf/deloitte --project "NSDF PMU 2026" --user you@dept.gov.in
 """
 import argparse
 from datetime import date
@@ -18,6 +20,12 @@ def main() -> None:
     args = _parser().parse_args()
     if args.command == "evaluate":
         _evaluate(args)
+    elif args.command == "migrate":
+        from app.db.migrate import migrate
+        print("applied:", migrate(get_settings()) or "nothing, database is up to date")
+    elif args.command == "save-run":
+        from app.db.save_run import save_run
+        print("saved run", save_run(get_settings(), Path(args.run), args.project, args.user))
     else:
         from app.compare import compare
         report = compare(Path(args.run), Path(args.expected), args.bidder)
@@ -51,6 +59,10 @@ def _parser() -> argparse.ArgumentParser:
     cmp = sub.add_parser("compare", help="compare a run with the committee sheet")
     for name in ("--run", "--bidder", "--expected"):
         cmp.add_argument(name, required=True)
+    sub.add_parser("migrate", help="apply pending SQL migrations")
+    save = sub.add_parser("save-run", help="load a finished run folder into Postgres")
+    for name in ("--run", "--project", "--user"):
+        save.add_argument(name, required=True)
     return parser
 
 

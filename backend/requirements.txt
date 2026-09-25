@@ -5,3 +5,4 @@ pypdfium2>=4.30      # PDF text + page rendering (Apache/BSD)
 python-dateutil>=2.9
 pillow>=10           # rendering pages for local OCR
 pytest>=8
+psycopg[binary]>=3.1  # Postgres driver

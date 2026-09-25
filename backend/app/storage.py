@@ -2,6 +2,7 @@
 run (same shapes as docs/schema.md); Postgres replaces this in phase 2.
 A step whose file exists is skipped, so an interrupted run resumes.
 """
+import hashlib
 import json
 from pathlib import Path
 from typing import Callable, TypeVar
@@ -29,6 +30,14 @@ def write(path: Path, data: object) -> None:
 
 def read(path: Path) -> object:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def safe_name(label: str) -> str:
