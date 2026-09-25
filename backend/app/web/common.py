@@ -1,26 +1,15 @@
-"""Shared bits for route modules: templates, rendering, the project stepper, uploads."""
+"""Shared bits for API route modules: JSON replies, the project stepper, uploads."""
 import hashlib
 import io
+import json
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
+from uuid import UUID
 
 import pypdfium2 as pdfium
-from starlette.responses import RedirectResponse
-from starlette.templating import Jinja2Templates
+from starlette.responses import JSONResponse
 
-FRONTEND = Path(__file__).resolve().parents[3] / "frontend"   # repo-root/frontend
-templates = Jinja2Templates(directory=str(FRONTEND / "templates"))
-
-
-def format_marks(value) -> str:
-    """12.00 -> 12, 9.50 -> 9.5, None -> —"""
-    if value is None:
-        return "—"
-    text = f"{Decimal(str(value)):.2f}".rstrip("0").rstrip(".")
-    return text or "0"
-
-
-templates.env.filters["marks"] = format_marks
 MAX_UPLOAD_BYTES = 150 * 1024 * 1024
 
 STEPS = [("rfp", "Details & RFP"), ("criteria", "Criteria"),
@@ -30,16 +19,35 @@ STATUS_STEP = {"DRAFT": 0, "RFP_UPLOADED": 1, "CRITERIA_READY": 1, "PROMPT_APPRO
                "EVALUATING": 3, "REVIEW": 4, "CLOSED": 4}
 
 
-def render(request, name: str, user: dict, **context):
-    context.update(request=request, user=user, csrf=request.session.get("csrf", ""))
-    return templates.TemplateResponse(request, name, context)
+def format_marks(value) -> str:
+    """12.00 -> 12, 9.50 -> 9.5. Marks go to the browser as exact strings, never floats."""
+    text = f"{Decimal(str(value)):.2f}".rstrip("0").rstrip(".")
+    return text or "0"
 
 
-def go(url: str) -> RedirectResponse:
-    return RedirectResponse(url, status_code=303)
+def _plain(value):
+    if isinstance(value, Decimal):
+        return format_marks(value)
+    if isinstance(value, (UUID, date, datetime)):
+        return str(value)
+    raise TypeError(f"not JSON serialisable: {type(value).__name__}")
+
+
+class ApiResponse(JSONResponse):
+    def render(self, content) -> bytes:
+        return json.dumps(content, default=_plain, ensure_ascii=False).encode("utf-8")
+
+
+def ok(data, message: str = "ok", status_code: int = 200) -> ApiResponse:
+    return ApiResponse({"data": data, "message": message}, status_code=status_code)
+
+
+def fail(message: str, status_code: int = 400) -> ApiResponse:
+    return ApiResponse({"data": None, "message": message}, status_code=status_code)
 
 
 def stepper(project: dict, current: str, run_id: str | None) -> list[dict]:
+    """Steps of one project; `url` is the React route, None while a step is locked."""
     reached = STATUS_STEP.get(project["status"], 0)
     base = f"/projects/{project['tender_id']}"
     urls = {"rfp": f"{base}/rfp", "criteria": f"{base}/criteria",

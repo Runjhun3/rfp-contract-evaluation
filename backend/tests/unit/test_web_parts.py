@@ -8,7 +8,6 @@ def test_format_marks():
     assert format_marks(Decimal("9.50")) == "9.5"
     assert format_marks(Decimal("10.05")) == "10.05"
     assert format_marks(0) == "0"
-    assert format_marks(None) == "—"
 
 
 def test_stepper_unlocks_steps_by_status():

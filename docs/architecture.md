@@ -6,10 +6,10 @@ Read alongside coding-standards.md and schema.md. Root CLAUDE.md is the index.
 - **Phase 1 (built):** command-line pipeline for one bidder at a time
   (`python run.py evaluate` / `compare`). Each step writes JSON into a run
   folder with the same shapes as schema.md; re-runs skip finished steps.
-- **Phase 2 (built):** Postgres (schema.md), the job queue + worker, and a
-  server-rendered web UI (Starlette + Jinja2, one CSS file, one small JS file,
-  no build step). Pages and assets live in `frontend/`; the routes that fill
-  them live in `backend/app/web/`. The pipeline still writes its step files under RUNS_DIR as a
+- **Phase 2 (built):** Postgres (schema.md), the job queue + worker, a JSON
+  API (Starlette, `backend/app/web/`, under `/api/v1`) and a React UI
+  (React + TypeScript + Vite, `frontend/`; decisions.md D-025). In production
+  the Python app serves the built UI from `frontend/dist`. The pipeline still writes its step files under RUNS_DIR as a
   cache and audit trail; results are saved to Postgres when each bidder finishes.
 
 ## Components
@@ -51,7 +51,7 @@ reads the cover page and sets `bid_submission.cover_check`.
 
 ## Folder layout
 ```
-frontend/                   # server-rendered UI: templates/ (Jinja2 pages), static/ (app.css, app.js)
+frontend/                   # React UI: src/pages (one per screen), src/components, src/api.ts; dist/ = build
 backend/
   run.py                    # phase 1: `evaluate`, `compare`; phase 2 adds `api|worker|migrate`
   app/
@@ -101,19 +101,26 @@ docker-compose.yml          # postgres + pgvector for local dev
 - Vision fallback: pages rendered to PNG (pypdfium2, 150 dpi) are sent only
   when Textract confidence < 0.80 on a page cited as evidence.
 
-## Web routes (server-rendered; the UI design canvas maps 1:1)
-| Screen | Routes |
+## Web UI and API (the UI design canvas maps 1:1)
+Each React screen (`frontend/src/pages/`) calls the API below. Every reply is
+`{"data": ..., "message": ...}`; errors use 4xx with a readable `message`.
+Marks are exact strings (Decimal on the server), never JSON numbers.
+
+| Screen (React route) | API (all under /api/v1) |
 | ------ | ------ |
-| Projects | GET / (→ /projects), GET /projects?page=N |
-| New project | GET /projects/new, POST /projects |
-| 1 Details & RFP | GET/POST /projects/{id}/rfp → EXTRACT_CRITERIA job |
-| 2 Criteria | GET/POST /projects/{id}/criteria, POST …/criteria/approve |
-| 3 Participants & bids | GET/POST /projects/{id}/participants, POST /projects/{id}/firms, POST /submissions/{id}/file |
-| 4 Evaluate | POST /projects/{id}/runs → EVALUATE_SUBMISSION jobs; GET /runs/{id}; GET /api/v1/runs/{id}/progress |
-| 5 Results | GET /runs/{id}/results, POST /runs/{id}/presentation |
-| Evidence | GET /scores/{id}?item=&page=, POST /scores/{id}/decision, GET /submissions/{id}/pages/{n}.png |
+| Projects (`/projects?page=N`; `/` redirects here) | GET /projects?page=N |
+| New project (`/projects/new`) | POST /projects |
+| Open project (`/projects/{id}`) | GET /projects/{id} → `landing` = the step reached |
+| 1 Details & RFP (`/projects/{id}/rfp`) | GET /projects/{id}/rfp, POST (multipart) → EXTRACT_CRITERIA job |
+| 2 Criteria (`/projects/{id}/criteria`) | GET/POST /projects/{id}/criteria, POST …/criteria/approve; page polls every 10 s until criteria exist |
+| 3 Participants & bids (`/projects/{id}/participants?q=`) | GET/POST /projects/{id}/participants, POST /projects/{id}/firms, POST (multipart) /submissions/{id}/file |
+| 4 Evaluate (`/runs/{id}`) | POST /projects/{id}/runs → EVALUATE_SUBMISSION jobs; GET /runs/{id}, polled every 5 s until DONE/FAILED |
+| 5 Results (`/runs/{id}/results`) | GET /runs/{id}/results, POST /runs/{id}/presentation |
+| Evidence (`/scores/{id}?item=&page=`) | GET /scores/{id}?item=, POST /scores/{id}/decision, GET /submissions/{id}/pages/{n}.png |
+| (session) | GET /session → the CSRF token |
 
 No login (decisions.md D-024): every action is recorded against the built-in
-"Local user". Every POST carries a CSRF token.
+"Local user". Every POST sends the session's CSRF token in `X-CSRF-Token`.
+Any other GET path returns the React app's index.html (client-side routing).
 Security headers: CSP `default-src 'self'` (no inline script/style), X-Frame-Options DENY,
 nosniff, same-origin referrer, HSTS when COOKIE_SECURE.

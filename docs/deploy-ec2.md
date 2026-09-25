@@ -31,7 +31,11 @@ cd backend && python3.12 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 pytest                                        # unit tests
 python run.py migrate                         # creates all tables
+cd ../frontend && npm ci && npm test && npm run build   # React UI -> frontend/dist
 ```
+Node (20+) is needed only for `npm run build`. Either install it on the VM, or
+build on a trusted machine/CI and copy `frontend/dist/` to the same path on the
+VM. `python run.py web` serves `dist/`; rebuild after every UI change.
 
 ## Run as services (systemd) behind nginx
 ```ini

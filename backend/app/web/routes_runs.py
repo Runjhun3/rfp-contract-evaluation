@@ -1,11 +1,11 @@
-"""Start an evaluation, watch its progress (page + JSON for polling)."""
-from starlette.responses import JSONResponse
+"""API: start an evaluation and watch its progress (the page polls GET /runs/{id})."""
 from starlette.routing import Route
 
 from app.db import q_bids, q_projects, q_runs
 from app.db.connection import transaction
-from app.web.auth import form_with_csrf, local_user
-from app.web.common import go, render, stepper
+from app.db.repo_setup import LOCAL_USER_ID
+from app.web.auth import check_csrf
+from app.web.common import fail, ok, stepper
 
 STAGES = ["READING", "OCR", "LABELLING", "ITEMS", "CHECKS", "SCORING", "DONE"]
 STAGE_LABEL = {"QUEUED": "Waiting to start", "READING": "Reading pages",
@@ -19,18 +19,19 @@ def _db(request):
 
 
 async def start_run(request):
-    user = local_user(request)
+    check_csrf(request)
     tender_id = str(request.path_params["tender_id"])
-    await form_with_csrf(request)
     settings = request.app.state.settings
     with _db(request) as cur:
         prompt = q_projects.latest_prompt(cur, tender_id)
         ready = [s["submission_id"] for s in q_bids.ready_submissions(cur, tender_id)]
-        if not prompt or prompt["status"] != "APPROVED" or not ready:
-            return go(f"/projects/{tender_id}/participants")
+        if not prompt or prompt["status"] != "APPROVED":
+            return fail("Criteria must be approved first.", 409)
+        if not ready:
+            return fail("Upload at least one bid.", 409)
         run_id = q_runs.start_run(cur, tender_id, prompt["prompt_id"], settings.claude_model,
-                                  user["user_id"], ready)
-    return go(f"/runs/{run_id}")
+                                  LOCAL_USER_ID, ready)
+    return ok({"run_id": run_id}, "Evaluation started", 201)
 
 
 def _rows(cur, run_id: str) -> list[dict]:
@@ -45,33 +46,18 @@ def _rows(cur, run_id: str) -> list[dict]:
 
 
 async def run_page(request):
-    user = local_user(request)
     run_id = str(request.path_params["run_id"])
     with _db(request) as cur:
         run = q_runs.get_run(cur, run_id)
         if run is None:
-            return go("/projects")
+            return fail("Run not found", 404)
         project = q_projects.get_project(cur, run["tender_id"])
         rows = _rows(cur, run_id)
-    return render(request, "run.html", user, project=project, run=run, rows=rows,
-                  steps=stepper(project, "evaluate", run_id))
-
-
-async def run_progress(request):
-    run_id = str(request.path_params["run_id"])
-    with _db(request) as cur:
-        run = q_runs.get_run(cur, run_id)
-        rows = _rows(cur, run_id) if run else []
-    if run is None:
-        return JSONResponse({"data": None, "message": "Run not found"}, status_code=404)
-    data = {"status": run["status"],
-            "rows": [{k: r[k] for k in ("submission_id", "short_name", "stage", "label",
-                                        "percent")} for r in rows]}
-    return JSONResponse({"data": data, "message": "ok"})
+    return ok({"project": project, "run": run, "rows": rows,
+               "steps": stepper(project, "evaluate", run_id)})
 
 
 routes = [
-    Route("/projects/{tender_id:uuid}/runs", start_run, methods=["POST"]),
-    Route("/runs/{run_id:uuid}", run_page, methods=["GET"]),
-    Route("/api/v1/runs/{run_id:uuid}/progress", run_progress, methods=["GET"]),
+    Route("/api/v1/projects/{tender_id:uuid}/runs", start_run, methods=["POST"]),
+    Route("/api/v1/runs/{run_id:uuid}", run_page, methods=["GET"]),
 ]

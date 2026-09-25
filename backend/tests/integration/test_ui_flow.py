@@ -1,4 +1,5 @@
-"""End-to-end UI flow against a real, EMPTY test database, with a scripted LLM.
+"""End-to-end API flow (what the React UI calls) against a real, EMPTY test database,
+with a scripted LLM.
 
 Needs: PostgreSQL (DB_* env pointing at a throw-away database; its public schema
 is dropped and recreated), and the NSDF PDFs in data/golden/nsdf/.
@@ -88,45 +89,53 @@ def test_full_flow(tmp_path):
         cur.execute("drop schema public cascade; create schema public")
     migrate(s)
     llm = LlmClient(s, completer=fake_all)
-    app = create_app(s); c = TestClient(app, follow_redirects=False)
-    def csrf(html): return re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+    c = TestClient(create_app(s), follow_redirects=False)
     def ok(cond, what): assert cond, what
+    def data(r): return r.json()["data"]
 
-    r = c.get("/"); ok(r.status_code == 303 and r.headers["location"] == "/projects", "no login: / -> projects")
+    r = c.get("/api/v1/projects"); ok(r.status_code == 200 and data(r)["projects"] == [], "empty projects list")
     for h, v in [("content-security-policy", "default-src 'self'"), ("x-frame-options", "DENY")]:
         ok(v in r.headers.get(h, ""), f"header {h}")
-    page = c.get("/projects").text; ok("No projects yet" in page, "empty projects list")
-    tok = csrf(page)
-    r = c.post("/projects", data={"name": "x", "due": "2026-05-07"}); ok(r.status_code == 403, "POST without CSRF refused")
-    r = c.post("/projects", data={"csrf": tok, "name": "NSDF PMU 2026", "gem": "GEM/2026/B/7401395",
-                                  "department": "Department of Sports, MYAS", "due": "2026-05-07"})
-    ok(r.status_code == 303, "project created"); base = r.headers["location"].rsplit("/", 1)[0]
-    r = c.post(base + "/rfp", data={"csrf": tok}, files={"file": ("notes.txt", b"hello", "text/plain")})
-    ok("not a PDF" in r.text, "non-PDF upload rejected")
-    r = c.post(base + "/rfp", data={"csrf": tok}, files={"file": ("RFP_Document_NSDF.pdf", open(RFP,'rb').read(), "application/pdf")})
-    ok(r.status_code == 303, "RFP uploaded")
-    ok("Reading the RFP" in c.get(base + "/criteria").text, "criteria page waits for worker")
+    ok(c.get("/api/v1/nope").status_code == 404, "unknown API path is a JSON 404")
+    r = c.post("/api/v1/projects", json={"name": "x", "due": "2026-05-07"}); ok(r.status_code == 403, "POST without CSRF refused")
+    c.headers["X-CSRF-Token"] = data(c.get("/api/v1/session"))["csrf"]
+    r = c.post("/api/v1/projects", json={"name": "NSDF PMU 2026", "gem": "GEM/2026/B/7401395",
+                                         "department": "Department of Sports, MYAS", "due": "2026-05-07"})
+    ok(r.status_code == 201, "project created"); base = f"/api/v1/projects/{data(r)['tender_id']}"
+    r = c.post(base + "/rfp", files={"file": ("notes.txt", b"hello", "text/plain")})
+    ok(r.status_code == 400 and "not a PDF" in r.json()["message"], "non-PDF upload rejected")
+    r = c.post(base + "/rfp", files={"file": ("RFP_Document_NSDF.pdf", open(RFP,'rb').read(), "application/pdf")})
+    ok(r.status_code == 201, "RFP uploaded")
+    ok(data(c.get(base + "/criteria"))["criteria"] == [], "criteria wait for worker")
     ok(run_once(s, llm), "worker: extract criteria")
-    page = c.get(base + "/criteria").text
-    ok("A.1" in page and "B.2" in page and "Committee only" in page, "criteria shown")
-    r = c.post(base + "/criteria/approve", data={"csrf": tok}); ok(r.status_code == 303, "criteria approved")
-    r = c.post(base.replace("/projects/", "/projects/") + "/firms", data={"csrf": tok, "legal_name": "Deloitte Touche Tohmatsu India LLP", "short_name": "Deloitte"})
-    ok(r.status_code == 303, "firm added")
-    page = c.get(base + "/participants").text; sub = re.search(r'/submissions/([0-9a-f-]{36})/file', page).group(1)
-    r = c.post(f"/submissions/{sub}/file", data={"csrf": tok}, files={"file": ("Deloitte all docs.pdf", open(BID,'rb').read(), "application/pdf")})
-    ok(r.status_code == 303, "bid uploaded")
-    page = c.get(base + "/participants").text; ok("464 pages" in page and "Evaluate 1 participant" in page, "participant ready")
-    r = c.post(base + "/runs", data={"csrf": tok}); ok(r.status_code == 303, "run started"); run_url = r.headers["location"]
-    ok("Waiting to start" in c.get(run_url).text, "progress page")
+    crit = data(c.get(base + "/criteria")); codes = {x["code"]: x for x in crit["criteria"]}
+    ok("A.1" in codes and "B.2" in codes and codes["C"]["scored_by"] == "COMMITTEE", "criteria shown")
+    r = c.post(base + "/criteria/approve"); ok(r.status_code == 200, "criteria approved")
+    r = c.post(base + "/firms", json={"legal_name": "Deloitte Touche Tohmatsu India LLP", "short_name": "Deloitte"})
+    ok(r.status_code == 201, "firm added")
+    sub = data(c.get(base + "/participants"))["submissions"][0]["submission_id"]
+    r = c.post(f"/api/v1/submissions/{sub}/file", files={"file": ("Deloitte all docs.pdf", open(BID,'rb').read(), "application/pdf")})
+    ok(r.status_code == 201, "bid uploaded")
+    part = data(c.get(base + "/participants"))
+    ok(part["submissions"][0]["page_count"] == 464 and part["ready"] == 1 and part["approved"], "participant ready")
+    r = c.post(base + "/runs"); ok(r.status_code == 201, "run started"); run = f"/api/v1/runs/{data(r)['run_id']}"
+    ok(data(c.get(run))["rows"][0]["label"] == "Waiting to start", "progress page")
     ok(run_once(s, llm), "worker: evaluate Deloitte")
-    prog = c.get("/api/v1" + run_url + "/progress").json(); ok(prog["data"]["status"] == "DONE", f"progress api DONE ({prog['data']['status']})")
-    page = c.get(run_url + "/results").text
-    ok("Deloitte" in page and "A.1 /16" in page and "C presentation /35" in page, "results matrix")
-    score = re.search(r'href="/scores/([0-9a-f-]{36})"', page).group(1)
-    ev = c.get(f"/scores/{score}").text; ok("Credential-1" in ev and "Record decision" in ev, "evidence page")
-    img = c.get(f"/submissions/{sub}/pages/143.png"); ok(img.status_code == 200 and img.content[:4] == b"\x89PNG", "page image")
-    r = c.post(f"/scores/{score}/decision", data={"csrf": tok, "action": "OVERRIDE", "marks": "12", "reason": "short"}); ok("at least 10" in r.text, "short reason refused")
-    r = c.post(f"/scores/{score}/decision", data={"csrf": tok, "action": "OVERRIDE", "marks": "12", "reason": "Credentials 7-11 fail duration, India-only and award-date rules"}); ok(r.status_code == 303, "decision recorded")
-    r = c.post(run_url + "/presentation", data={"csrf": tok, f"p_{sub}": "32"}); ok(r.status_code == 303, "presentation saved")
-    page = c.get(run_url + "/results").text; ok(">12<" in page.replace("● ", "") and "decided" in page and 'value="32' in page, "results show decision + presentation")
-    ok("Local user" in c.get(f"/scores/{score}").text, "decision recorded against the built-in local user")
+    ok(data(c.get(run))["run"]["status"] == "DONE", "run DONE")
+    res = data(c.get(run + "/results"))
+    ok(res["rows"][0]["name"] == "Deloitte" and any(x["code"] == "A.1" and x["max_marks"] == "16" for x in res["codes"])
+       and res["presentation"]["max_marks"] == "35", "results matrix")
+    score = res["rows"][0]["cells"]["A.1"]["score_id"]
+    ev = data(c.get(f"/api/v1/scores/{score}"))
+    ok(any("Credential-1" in (i["title"] or i["label"]) for i in ev["items"]), "evidence page")
+    img = c.get(f"/api/v1/submissions/{sub}/pages/143.png"); ok(img.status_code == 200 and img.content[:4] == b"\x89PNG", "page image")
+    r = c.post(f"/api/v1/scores/{score}/decision", json={"action": "OVERRIDE", "marks": "12", "reason": "short"})
+    ok(r.status_code == 400 and "at least 10" in r.json()["message"], "short reason refused")
+    r = c.post(f"/api/v1/scores/{score}/decision", json={"action": "OVERRIDE", "marks": "12", "reason": "Credentials 7-11 fail duration, India-only and award-date rules"})
+    ok(r.status_code == 201, "decision recorded")
+    r = c.post(run + "/presentation", json={"marks": {sub: "32"}}); ok(r.status_code == 200, "presentation saved")
+    res = data(c.get(run + "/results")); row = res["rows"][0]
+    ok(row["cells"]["A.1"]["marks"] == "12" and row["cells"]["A.1"]["reviewed"] and row["presentation"] == "32",
+       "results show decision + presentation")
+    ok(data(c.get(f"/api/v1/scores/{score}"))["history"][0]["full_name"] == "Local user",
+       "decision recorded against the built-in local user")

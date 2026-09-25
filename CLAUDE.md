@@ -1,14 +1,15 @@
 # RFP Bid Evaluation Service — index
 
 Python service that scores GeM RFP bids with an LLM (Claude Sonnet 4.6 on
-Amazon Bedrock). A committee reviews and signs every result. This file is the
-index. Read the file that matches your task before changing anything.
+Amazon Bedrock), with a React UI in `frontend/`. A committee reviews and signs
+every result. This file is the index. Read the file that matches your task
+before changing anything.
 
 | Read this                        | When you are...                                        |
 | -------------------------------- | ------------------------------------------------------ |
 | docs/design.md                   | new to the project, or asking "why is it like this?"   |
 | docs/architecture.md             | adding a module, API, job or AWS integration           |
-| docs/coding-standards.md         | writing ANY code or prompt (non-negotiable rules)      |
+| docs/coding-standards.md         | writing ANY code, UI or prompt (non-negotiable rules)  |
 | docs/schema.md                   | touching tables, migrations or queries                 |
 | docs/pipeline.md                 | working on ingestion, OCR, page labels or evaluation   |
 | docs/prompts.md                  | adding or changing a prompt                            |

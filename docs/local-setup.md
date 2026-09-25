@@ -2,6 +2,7 @@
 
 ## Prerequisites
 - Python 3.12, Docker, AWS access to ap-south-1 (S3, Textract, Bedrock).
+- Node.js 20+ and npm, to build the React UI (not needed to run it).
 - Your own IAM credentials. Never reuse someone else's keys.
 
 ## Phase 1: score one bidder (what exists today)
@@ -41,11 +42,19 @@ cd backend
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python run.py migrate           # applies backend/migrations/*.sql
-python run.py web               # http://127.0.0.1:8000, no login
+python run.py web               # API + built UI on http://127.0.0.1:8000, no login
 python run.py worker            # second terminal: criteria extraction + evaluations
 pytest                          # unit tests
-pytest -m integration           # full UI flow; needs an EMPTY test database + data/golden/nsdf PDFs
+pytest tests/integration        # full API flow; needs an EMPTY test database + data/golden/nsdf PDFs
+
+cd ../frontend                  # the React UI
+npm install
+npm run build                   # writes frontend/dist, which `python run.py web` serves
+npm test                        # UI unit tests (vitest); `npm run typecheck` for TypeScript
 ```
+While changing the UI, run `npm run dev` instead of `npm run build` and open
+http://localhost:5173: Vite reloads on every save and proxies `/api` to the
+Python app on port 8000 (keep `python run.py web` running).
 No login or roles (decisions.md D-024): the UI opens on Projects and every action
 is recorded as "Local user". Keep it on localhost or a private network.
 

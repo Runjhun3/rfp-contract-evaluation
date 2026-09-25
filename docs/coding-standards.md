@@ -65,6 +65,20 @@ CLAUDE.md is the index that points here.
 - Dates are `datetime.date`. Timestamps are timezone-aware UTC.
 - Raise specific exceptions. Never `except Exception: pass`.
 
+## Frontend (React + TypeScript, `frontend/`)
+- React function components + hooks, TypeScript `strict`. One screen per file
+  in `src/pages/`; shared pieces in `src/components/`. Same size rules (files
+  <= 150 lines).
+- All API calls go through `src/api.ts` (`get` / `post`). Nothing else calls
+  `fetch`. Screens load data with `useApi` (`src/useApi.ts`).
+- No business logic in the UI: no scoring, totals, ranks or rules. The API
+  sends marks as exact strings and the UI only displays them.
+- No inline `style=` and no inline scripts: the CSP is `style-src 'self'` and
+  `script-src 'self'`. All styling lives in `src/styles/app.css`.
+- Every input has a label (visible or `sr-only`); keep the keyboard and
+  screen-reader behaviour of the design canvas.
+- Commit `package-lock.json`; add a dependency only when it earns its place.
+
 ## Database
 - All schema changes go through a new numbered file in `backend/migrations/`
   (e.g. `002_add_x.sql`), applied by `python run.py migrate`. Never edit a

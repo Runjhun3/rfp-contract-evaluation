@@ -36,6 +36,14 @@ Bids are commercially confidential, and CVs contain personal data (DPDP Act
 - Retention: delete bid files and page text when the tender's retention period
   ends. Keep scores, reasons and page numbers for audit.
 
+## Browser UI (React)
+- CSP `default-src 'self'` with no inline script or style; the Vite build is
+  checked to contain none. Keep it that way (coding-standards.md, Frontend).
+- Every write (POST) carries the session's CSRF token in `X-CSRF-Token`; the
+  session cookie is `SameSite=Strict`.
+- npm packages are code we run: keep the list short, commit
+  `package-lock.json`, run `npm audit` before each release.
+
 ## Access (no login)
 The UI has no login or roles (decisions.md D-024): anyone who can reach it can
 upload, evaluate, approve and decide, and every action is recorded as "Local

@@ -3,6 +3,18 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-025 React UI over a JSON API (2026-09-25)
+Supersedes the UI part of D-022. The screens are a React single-page app
+(React 19 + TypeScript + React Router, built with Vite) in `frontend/`. The
+Python side is a JSON API under `/api/v1` (`{"data", "message"}` replies) in
+`backend/app/web/`. Marks travel as exact strings, never JSON numbers, so the
+browser never does float maths on them. In production Starlette serves the
+built `frontend/dist`, so it is still one process and Node is needed only to
+build, not to run. CSRF moves from a hidden form field to the `X-CSRF-Token`
+header; the strict CSP stays (the build has no inline script or style).
+Every screen, route and behaviour of the Jinja2 UI was carried over one-to-one.
+Trade-off: a Node toolchain and npm dependencies to keep patched (`npm audit`).
+
 ## D-024 No login: one built-in local user (2026-09-25)
 The login page, sign-out, roles (VIEWER/EVALUATOR/COMMITTEE/ADMIN) and
 `create-user` are removed; supersedes the login/roles part of D-022. The app

@@ -7,7 +7,7 @@
   python run.py compare --run runs/nsdf/deloitte --bidder Deloitte \
       --expected tests/golden/nsdf/expected_scores.json
   python run.py migrate                      # apply backend/migrations/*.sql
-  python run.py web                          # the UI on http://127.0.0.1:8000
+  python run.py web                          # API + built React UI on http://127.0.0.1:8000
   python run.py worker                       # background jobs (run alongside web)
   python run.py save-run --run runs/nsdf/deloitte --project "NSDF PMU 2026"
 """

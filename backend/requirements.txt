@@ -7,9 +7,8 @@ pillow>=10           # rendering pages for local OCR
 pytest>=8
 psycopg[binary]>=3.1  # Postgres driver
 
-# web UI
+# web API (the React UI is in ../frontend)
 starlette>=0.40
-jinja2>=3.1
 python-multipart>=0.0.9
 itsdangerous>=2.1
 uvicorn>=0.30

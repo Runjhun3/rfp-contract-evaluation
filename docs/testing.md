@@ -4,7 +4,8 @@
 | Level | Command | Calls AWS? | When |
 | ----- | ------- | ---------- | ---- |
 | Unit | `pytest` | No, uses recorded responses in `tests/fixtures/` | every commit, CI |
-| Integration | `pytest -m integration` | Local Postgres only | every PR |
+| Integration | `pytest tests/integration` | Local Postgres only | every PR |
+| UI | `npm test` + `npm run typecheck` in `frontend/` | No | every commit that touches `frontend/` |
 | Golden | `pytest -m golden` | Yes: S3, Textract, Bedrock | any prompt or `evaluate/` change |
 
 Must-have unit tests:
