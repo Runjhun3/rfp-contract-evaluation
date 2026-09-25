@@ -64,9 +64,10 @@ views: final_score (review wins over checked marks), run_total (/65 + /35)
 ## Not in the first migration
 - `page.embedding vector(1024)`: add with pgvector only if meaning-based
   mapping by the LLM proves insufficient (decisions.md D-014).
-- Authentication tables: `app_user` is enough until SSO is chosen.
+- Authentication: none. `app_user` holds one built-in "Local user" (002_local_user)
+  that every action is recorded against (decisions.md D-024).
 
 ## Loading a CLI run
-`python run.py save-run --run <folder> --project "<name>" --user <email>`
+`python run.py save-run --run <folder> --project "<name>"`
 loads a finished phase-1 run folder into these tables in one transaction.
 It is idempotent: a run already in the database is skipped.

@@ -1,16 +1,12 @@
-"""Find-or-create the rows a run hangs off: user, tender, criteria, prompt, bidder,
+"""Find-or-create the rows a run hangs off: tender, criteria, prompt, bidder,
 submission, file. Every function is idempotent (safe to call twice).
 """
 import json
 
 from app.schemas.records import Criterion, RunContext
 
-
-def ensure_user(cur, email: str, full_name: str, role: str = "EVALUATOR") -> str:
-    cur.execute("""insert into app_user (email, full_name, role) values (%s, %s, %s)
-                   on conflict (email) do update set email = excluded.email
-                   returning user_id""", (email, full_name, role))
-    return str(cur.fetchone()[0])
+# The one built-in user (migration 002_local_user). The app has no login.
+LOCAL_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
 def ensure_tender(cur, ctx: RunContext, name: str, user_id: str) -> str:

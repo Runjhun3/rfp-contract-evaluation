@@ -30,16 +30,15 @@ Bids are commercially confidential, and CVs contain personal data (DPDP Act
 - Access for people only through presigned URLs (15 min) from the API.
 
 ## Personal data (CVs)
-- Store CV facts only in `page.text` and `project.cv_facts`. They are read only by
-  committee roles.
+- Store CV facts only in `page.text` and `project.cv_facts`. Only people who can reach
+  the UI can read them (see Access below).
 - Never log CV content, names, phone numbers or emails.
 - Retention: delete bid files and page text when the tender's retention period
   ends. Keep scores, reasons and page numbers for audit.
 
-## Access roles (first cut)
-| Role | Can |
-| ---- | --- |
-| ADMIN | create tenders, manage users |
-| EVALUATOR | upload RFP/bids, edit draft prompt, start runs |
-| COMMITTEE | approve prompt, review/override scores, enter presentation marks, export |
-| VIEWER | read scores (no page text, no CVs) |
+## Access (no login)
+The UI has no login or roles (decisions.md D-024): anyone who can reach it can
+upload, evaluate, approve and decide, and every action is recorded as "Local
+user". So the UI must never be reachable from the internet. Run it on
+localhost, or on the VM behind a security group / VPN that admits only the
+committee's machines. Bring back accounts before opening it wider.

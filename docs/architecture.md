@@ -102,18 +102,18 @@ docker-compose.yml          # postgres + pgvector for local dev
   when Textract confidence < 0.80 on a page cited as evidence.
 
 ## Web routes (server-rendered; the UI design canvas maps 1:1)
-| Screen | Routes | Role |
-| ------ | ------ | ---- |
-| Sign in | GET/POST /login, POST /logout | — |
-| Projects | GET /projects?page=N | VIEWER |
-| New project | GET /projects/new, POST /projects | EVALUATOR |
-| 1 Details & RFP | GET/POST /projects/{id}/rfp → EXTRACT_CRITERIA job | EVALUATOR |
-| 2 Criteria | GET/POST /projects/{id}/criteria, POST …/criteria/approve | EVALUATOR / COMMITTEE approves |
-| 3 Participants & bids | GET/POST /projects/{id}/participants, POST /projects/{id}/firms, POST /submissions/{id}/file | EVALUATOR |
-| 4 Evaluate | POST /projects/{id}/runs → EVALUATE_SUBMISSION jobs; GET /runs/{id}; GET /api/v1/runs/{id}/progress | EVALUATOR |
-| 5 Results | GET /runs/{id}/results, POST /runs/{id}/presentation | VIEWER / COMMITTEE saves |
-| Evidence | GET /scores/{id}?item=&page=, POST /scores/{id}/decision, GET /submissions/{id}/pages/{n}.png | EVALUATOR / COMMITTEE decides |
+| Screen | Routes |
+| ------ | ------ |
+| Projects | GET / (→ /projects), GET /projects?page=N |
+| New project | GET /projects/new, POST /projects |
+| 1 Details & RFP | GET/POST /projects/{id}/rfp → EXTRACT_CRITERIA job |
+| 2 Criteria | GET/POST /projects/{id}/criteria, POST …/criteria/approve |
+| 3 Participants & bids | GET/POST /projects/{id}/participants, POST /projects/{id}/firms, POST /submissions/{id}/file |
+| 4 Evaluate | POST /projects/{id}/runs → EVALUATE_SUBMISSION jobs; GET /runs/{id}; GET /api/v1/runs/{id}/progress |
+| 5 Results | GET /runs/{id}/results, POST /runs/{id}/presentation |
+| Evidence | GET /scores/{id}?item=&page=, POST /scores/{id}/decision, GET /submissions/{id}/pages/{n}.png |
 
-Every POST carries a CSRF token; every role check runs on the server.
+No login (decisions.md D-024): every action is recorded against the built-in
+"Local user". Every POST carries a CSRF token.
 Security headers: CSP `default-src 'self'` (no inline script/style), X-Frame-Options DENY,
 nosniff, same-origin referrer, HSTS when COOKIE_SECURE.

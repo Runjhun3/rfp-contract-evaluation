@@ -19,7 +19,6 @@ a { color: var(--accent); } a:hover { color: var(--accent-hover); }
 .brand { display: flex; align-items: center; gap: 12px; color: var(--paper); text-decoration: none; }
 .brand:hover { color: var(--paper); }
 .brand strong { font: 600 19px var(--serif); }
-.topbar .who { display: flex; align-items: center; gap: 14px; font-size: 14px; color: #C9CED4; }
 .topbar button { background: none; border: 1px solid #56616D; color: var(--paper); border-radius: 6px;
   padding: 6px 12px; font: inherit; cursor: pointer; }
 

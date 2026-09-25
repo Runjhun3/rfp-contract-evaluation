@@ -1,17 +1,7 @@
-"""Queries for users, projects (tenders), the RFP and its criteria."""
+"""Queries for projects (tenders), the RFP and its criteria."""
 from app.db.connection import all_rows, one_row
 
 PAGE_SIZE = 25
-
-
-def user_by_email(cur, email: str) -> dict | None:
-    return one_row(cur, """select user_id::text, email, full_name, role, password_hash
-                           from app_user where lower(email) = lower(%s)""", (email,))
-
-
-def user_by_id(cur, user_id: str) -> dict | None:
-    return one_row(cur, "select user_id::text, full_name, role from app_user where user_id = %s",
-                   (user_id,))
 
 
 def list_projects(cur, page: int) -> list[dict]:

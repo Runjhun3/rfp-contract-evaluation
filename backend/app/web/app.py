@@ -2,6 +2,8 @@
 
 Run: python run.py web   (uvicorn on 127.0.0.1:8000; put nginx with TLS in front)
 """
+import secrets
+
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -10,9 +12,9 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from app.config import Settings
-from app.web import routes_auth, routes_bids, routes_projects, routes_results, routes_runs
-from app.web.auth import Forbidden, NotLoggedIn
-from app.web.common import FRONTEND, go, templates
+from app.web import routes_bids, routes_projects, routes_results, routes_runs
+from app.web.auth import Forbidden
+from app.web.common import FRONTEND, templates
 
 SECURITY_HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self'; style-src 'self'; "
@@ -39,14 +41,10 @@ class SecurityHeaders:
         await self.app(scope, receive, send_with_headers)
 
 
-async def _to_login(request, exc):
-    return go("/login")
-
-
 async def _forbidden(request, exc):
     return templates.TemplateResponse(request, "error.html", {
-        "request": request, "user": None, "title": "Not allowed",
-        "message": "Your role does not allow this action."}, status_code=403)
+        "request": request, "user": None, "title": "Form expired",
+        "message": "This form has expired. Go back, reload the page and try again."}, status_code=403)
 
 
 async def _not_found(request, exc):
@@ -54,18 +52,18 @@ async def _not_found(request, exc):
 
 
 def create_app(settings: Settings) -> Starlette:
-    if not settings.session_secret:
-        raise RuntimeError("Set SESSION_SECRET in .env before starting the web app")
-    routes = [*routes_auth.routes, *routes_projects.routes, *routes_bids.routes,
+    # The session only carries the CSRF token, so a fresh key per start is fine.
+    session_secret = settings.session_secret or secrets.token_urlsafe(32)
+    routes = [*routes_projects.routes, *routes_bids.routes,
               *routes_runs.routes, *routes_results.routes,
               Mount("/static", StaticFiles(directory=str(FRONTEND / "static")),
                     name="static")]
     middleware = [
         Middleware(SecurityHeaders, secure=settings.cookie_secure),
-        Middleware(SessionMiddleware, secret_key=settings.session_secret,
+        Middleware(SessionMiddleware, secret_key=session_secret,
                    https_only=settings.cookie_secure, same_site="strict", max_age=8 * 3600),
     ]
     app = Starlette(routes=routes, middleware=middleware, exception_handlers={
-        NotLoggedIn: _to_login, Forbidden: _forbidden, 404: _not_found})
+        Forbidden: _forbidden, 404: _not_found})
     app.state.settings = settings
     return app

@@ -6,7 +6,7 @@ from starlette.routing import Route
 from app import files
 from app.db import q_projects, q_runs
 from app.db.connection import transaction
-from app.web.auth import form_with_csrf, need
+from app.web.auth import form_with_csrf, local_user
 from app.web.common import BadUpload, go, read_pdf_upload, render, stepper
 
 
@@ -14,8 +14,12 @@ def _db(request):
     return transaction(request.app.state.settings)
 
 
+async def home(request):
+    return go("/projects")
+
+
 async def list_projects(request):
-    user = need(request)
+    user = local_user(request)
     page = max(1, int(request.query_params.get("page", "1") or 1))
     with _db(request) as cur:
         rows = q_projects.list_projects(cur, page)
@@ -24,11 +28,11 @@ async def list_projects(request):
 
 
 async def new_project(request):
-    return render(request, "project_new.html", need(request, "EVALUATOR"), error=None, form={})
+    return render(request, "project_new.html", local_user(request), error=None, form={})
 
 
 async def create_project(request):
-    user = need(request, "EVALUATOR")
+    user = local_user(request)
     form = await form_with_csrf(request)
     values = {k: str(form.get(k, "")).strip() for k in ("name", "gem", "department", "due")}
     try:
@@ -45,7 +49,6 @@ async def create_project(request):
 
 
 async def open_project(request):
-    need(request)
     tender_id = request.path_params["tender_id"]
     with _db(request) as cur:
         project = q_projects.get_project(cur, tender_id)
@@ -66,7 +69,7 @@ def _project_context(cur, tender_id: str, current: str) -> dict:
 
 
 async def rfp_page(request, error=None):
-    user = need(request)
+    user = local_user(request)
     tender_id = request.path_params["tender_id"]
     with _db(request) as cur:
         ctx = _project_context(cur, tender_id, "rfp")
@@ -75,7 +78,7 @@ async def rfp_page(request, error=None):
 
 
 async def upload_rfp(request):
-    user = need(request, "EVALUATOR")
+    user = local_user(request)
     tender_id = request.path_params["tender_id"]
     form = await form_with_csrf(request)
     try:
@@ -92,7 +95,7 @@ async def upload_rfp(request):
 
 
 async def criteria_page(request):
-    user = need(request)
+    user = local_user(request)
     tender_id = request.path_params["tender_id"]
     with _db(request) as cur:
         ctx = _project_context(cur, tender_id, "criteria")
@@ -104,7 +107,6 @@ async def criteria_page(request):
 
 
 async def save_criteria(request):
-    need(request, "EVALUATOR")
     tender_id = request.path_params["tender_id"]
     form = await form_with_csrf(request)
     with _db(request) as cur:
@@ -123,7 +125,7 @@ async def save_criteria(request):
 
 
 async def approve_criteria(request):
-    user = need(request, "COMMITTEE")
+    user = local_user(request)
     tender_id = request.path_params["tender_id"]
     await form_with_csrf(request)
     with _db(request) as cur:
@@ -132,6 +134,7 @@ async def approve_criteria(request):
 
 
 routes = [
+    Route("/", home, methods=["GET"]),
     Route("/projects", list_projects, methods=["GET"]),
     Route("/projects", create_project, methods=["POST"]),
     Route("/projects/new", new_project, methods=["GET"]),

@@ -17,7 +17,6 @@ from app.db.migrate import migrate
 from app.jobs.worker import run_once
 from app.llm.client import LlmClient
 from app.web.app import create_app
-from app.web.auth import hash_password
 
 pytestmark = pytest.mark.integration
 DATA = Path(__file__).resolve().parents[3] / "data" / "golden" / "nsdf"
@@ -83,24 +82,17 @@ def fake_all(system, user):
 def test_full_flow(tmp_path):
     root = tmp_path
     s = Settings(llm_cache_dir=str(root/'llm'), local_file_dir=str(root/'files'),
-                 runs_dir=str(root/'runs'), session_secret='test-secret', cookie_secure=False,
+                 runs_dir=str(root/'runs'),
                  ocr_engine='tesseract', ocr_min_chars=0, ocr_min_image_ratio=9)
     with transaction(s) as cur:
         cur.execute("drop schema public cascade; create schema public")
     migrate(s)
-    with transaction(s) as cur:
-        cur.execute("insert into app_user (email, full_name, role, password_hash) values (%s,%s,%s,%s)",
-                    ("chair@dept.gov.in", "Committee Chair", "COMMITTEE", hash_password("correct horse battery")))
-        cur.execute("insert into app_user (email, full_name, role, password_hash) values (%s,%s,%s,%s)",
-                    ("viewer@dept.gov.in", "A Viewer", "VIEWER", hash_password("correct horse battery")))
     llm = LlmClient(s, completer=fake_all)
     app = create_app(s); c = TestClient(app, follow_redirects=False)
     def csrf(html): return re.search(r'name="csrf" value="([^"]+)"', html).group(1)
     def ok(cond, what): assert cond, what
 
-    r = c.get("/projects"); ok(r.status_code == 303 and r.headers["location"] == "/login", "not logged in -> login")
-    r = c.post("/login", data={"email": "chair@dept.gov.in", "password": "wrong"}); ok(r.status_code == 400, "bad password rejected")
-    r = c.post("/login", data={"email": "chair@dept.gov.in", "password": "correct horse battery"}); ok(r.status_code == 303, "login")
+    r = c.get("/"); ok(r.status_code == 303 and r.headers["location"] == "/projects", "no login: / -> projects")
     for h, v in [("content-security-policy", "default-src 'self'"), ("x-frame-options", "DENY")]:
         ok(v in r.headers.get(h, ""), f"header {h}")
     page = c.get("/projects").text; ok("No projects yet" in page, "empty projects list")
@@ -137,8 +129,4 @@ def test_full_flow(tmp_path):
     r = c.post(f"/scores/{score}/decision", data={"csrf": tok, "action": "OVERRIDE", "marks": "12", "reason": "Credentials 7-11 fail duration, India-only and award-date rules"}); ok(r.status_code == 303, "decision recorded")
     r = c.post(run_url + "/presentation", data={"csrf": tok, f"p_{sub}": "32"}); ok(r.status_code == 303, "presentation saved")
     page = c.get(run_url + "/results").text; ok(">12<" in page.replace("● ", "") and "decided" in page and 'value="32' in page, "results show decision + presentation")
-    c.post("/logout", data={"csrf": tok})
-    c.post("/login", data={"email": "viewer@dept.gov.in", "password": "correct horse battery"})
-    ok(c.get(f"/scores/{score}").status_code == 403, "viewer cannot open evidence")
-    ok(c.get(f"/submissions/{sub}/pages/1.png").status_code == 403, "viewer cannot see bid pages")
-    ok(c.get("/projects").status_code == 200, "viewer sees projects")
+    ok("Local user" in c.get(f"/scores/{score}").text, "decision recorded against the built-in local user")

@@ -19,19 +19,19 @@
       <tr>
         <td><strong>{{ c.code }}</strong><br><span class="small muted">{{ c.stage|title }}{% if c.rfp_page %} · p.{{ c.rfp_page }}{% endif %}</span></td>
         <td><label class="sr-only" for="m{{ loop.index }}">Meaning of {{ c.code }}</label>
-          <textarea id="m{{ loop.index }}" name="meaning_{{ c.criterion_id }}" rows="2" {% if not user.can_edit %}disabled{% endif %}>{{ c.meaning }}</textarea>
+          <textarea id="m{{ loop.index }}" name="meaning_{{ c.criterion_id }}" rows="2">{{ c.meaning }}</textarea>
           <details><summary class="small">RFP text</summary><p class="small">{{ c.rfp_text }}</p></details></td>
         <td><label class="sr-only" for="k{{ loop.index }}">Scored per</label>
-          <select id="k{{ loop.index }}" name="kind_{{ c.criterion_id }}" {% if not user.can_edit %}disabled{% endif %}>
+          <select id="k{{ loop.index }}" name="kind_{{ c.criterion_id }}">
             <option value="" {% if not c.kind %}selected{% endif %}>—</option>
             <option value="PROJECT" {% if c.kind == 'PROJECT' %}selected{% endif %}>Project</option>
             <option value="CV" {% if c.kind == 'CV' %}selected{% endif %}>CV</option>
           </select></td>
-        <td class="right"><label class="sr-only" for="x{{ loop.index }}">Max marks</label><input id="x{{ loop.index }}" class="narrow num" type="text" name="max_marks_{{ c.criterion_id }}" value="{{ c.max_marks if c.max_marks is not none else '' }}" {% if not user.can_edit %}disabled{% endif %}></td>
-        <td class="right"><label class="sr-only" for="n{{ loop.index }}">Max items</label><input id="n{{ loop.index }}" class="narrow num" type="text" name="max_items_{{ c.criterion_id }}" value="{{ c.max_items if c.max_items is not none else '' }}" {% if not user.can_edit %}disabled{% endif %}></td>
-        <td><label class="sr-only" for="a{{ loop.index }}">Allowed marks per item</label><input id="a{{ loop.index }}" type="text" name="allowed_{{ c.criterion_id }}" value="{{ c.allowed or '' }}" placeholder="e.g. 1, 1.5, 2" {% if not user.can_edit %}disabled{% endif %}></td>
+        <td class="right"><label class="sr-only" for="x{{ loop.index }}">Max marks</label><input id="x{{ loop.index }}" class="narrow num" type="text" name="max_marks_{{ c.criterion_id }}" value="{{ c.max_marks if c.max_marks is not none else '' }}"></td>
+        <td class="right"><label class="sr-only" for="n{{ loop.index }}">Max items</label><input id="n{{ loop.index }}" class="narrow num" type="text" name="max_items_{{ c.criterion_id }}" value="{{ c.max_items if c.max_items is not none else '' }}"></td>
+        <td><label class="sr-only" for="a{{ loop.index }}">Allowed marks per item</label><input id="a{{ loop.index }}" type="text" name="allowed_{{ c.criterion_id }}" value="{{ c.allowed or '' }}" placeholder="e.g. 1, 1.5, 2"></td>
         <td><label class="sr-only" for="s{{ loop.index }}">Scored by</label>
-          <select id="s{{ loop.index }}" name="scored_by_{{ c.criterion_id }}" {% if not user.can_edit %}disabled{% endif %}>
+          <select id="s{{ loop.index }}" name="scored_by_{{ c.criterion_id }}">
             <option value="LLM" {% if c.scored_by == 'LLM' %}selected{% endif %}>AI + committee</option>
             <option value="COMMITTEE" {% if c.scored_by == 'COMMITTEE' %}selected{% endif %}>Committee only</option>
           </select></td>
@@ -43,16 +43,16 @@
       <h2>Rule text used by the evaluator{% if prompt %} · version {{ prompt.version }} ({{ prompt.status|lower }}){% endif %}</h2>
       <p class="small muted">Only criteria marked "Scored per: Project/CV" and "AI + committee" are evaluated from the bids.</p>
       <label class="sr-only" for="block">Rule text</label>
-      <textarea id="block" name="block" rows="16" {% if not user.can_edit %}disabled{% endif %}>{{ prompt.criteria_block if prompt else '' }}</textarea>
+      <textarea id="block" name="block" rows="16">{{ prompt.criteria_block if prompt else '' }}</textarea>
     </section>
-    {% if user.can_edit %}<div><button class="btn" type="submit">Save changes</button></div>{% endif %}
+    <div><button class="btn" type="submit">Save changes</button></div>
   </form>
   {% endif %}
 </main>
 {% if criteria %}
 <div class="actions">
-  <span class="small muted">{% if prompt and prompt.status == 'APPROVED' %}Approved. Editing creates a new version to approve.{% else %}Approval is recorded with your name and time.{% endif %}</span>
-  {% if user.can_decide and prompt and prompt.status != 'APPROVED' %}
+  <span class="small muted">{% if prompt and prompt.status == 'APPROVED' %}Approved. Editing creates a new version to approve.{% else %}Approval is recorded with the time.{% endif %}</span>
+  {% if prompt and prompt.status != 'APPROVED' %}
   <form method="post" action="/projects/{{ project.tender_id }}/criteria/approve">
     <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn primary" type="submit">Approve criteria</button>
   </form>

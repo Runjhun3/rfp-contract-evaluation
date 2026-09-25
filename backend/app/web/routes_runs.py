@@ -4,7 +4,7 @@ from starlette.routing import Route
 
 from app.db import q_bids, q_projects, q_runs
 from app.db.connection import transaction
-from app.web.auth import form_with_csrf, need
+from app.web.auth import form_with_csrf, local_user
 from app.web.common import go, render, stepper
 
 STAGES = ["READING", "OCR", "LABELLING", "ITEMS", "CHECKS", "SCORING", "DONE"]
@@ -19,7 +19,7 @@ def _db(request):
 
 
 async def start_run(request):
-    user = need(request, "EVALUATOR")
+    user = local_user(request)
     tender_id = str(request.path_params["tender_id"])
     await form_with_csrf(request)
     settings = request.app.state.settings
@@ -45,7 +45,7 @@ def _rows(cur, run_id: str) -> list[dict]:
 
 
 async def run_page(request):
-    user = need(request)
+    user = local_user(request)
     run_id = str(request.path_params["run_id"])
     with _db(request) as cur:
         run = q_runs.get_run(cur, run_id)
@@ -58,7 +58,6 @@ async def run_page(request):
 
 
 async def run_progress(request):
-    need(request)
     run_id = str(request.path_params["run_id"])
     with _db(request) as cur:
         run = q_runs.get_run(cur, run_id)

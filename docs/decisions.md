@@ -3,6 +3,18 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-024 No login: one built-in local user (2026-09-25)
+The login page, sign-out, roles (VIEWER/EVALUATOR/COMMITTEE/ADMIN) and
+`create-user` are removed; supersedes the login/roles part of D-022. The app
+opens straight to Projects and every action is recorded against one built-in
+user ("Local user", migration 002_local_user), so `created_by`, `approved_by`
+and `reviewer` still point at a real `app_user` row. CSRF on every form stays;
+the session key is generated at start when SESSION_SECRET is empty.
+Consequence: anyone who can reach the URL can do everything, and the record no
+longer says which person approved or decided. Run it only on localhost or a
+private network (see deploy-ec2.md). Bring back accounts (or SSO) if several
+people need separate sign-offs.
+
 ## D-023 Selection method removed (2026-09-25)
 The system scores only the document-based technical marks; the committee adds
 presentation marks. QBS/QCBS/L1 changed nothing, so the field is gone from the

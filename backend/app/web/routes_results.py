@@ -6,7 +6,7 @@ from starlette.routing import Route
 
 from app.db import q_projects, q_results, q_runs
 from app.db.connection import transaction
-from app.web.auth import form_with_csrf, need
+from app.web.auth import form_with_csrf, local_user
 from app.web.common import go, render, stepper
 from app.web.page_image import page_png
 
@@ -41,7 +41,7 @@ def _matrix(cur, run_id: str, tender_id: str) -> dict:
 
 
 async def results_page(request):
-    user = need(request)
+    user = local_user(request)
     run_id = str(request.path_params["run_id"])
     with _db(request) as cur:
         run = q_runs.get_run(cur, run_id)
@@ -54,7 +54,7 @@ async def results_page(request):
 
 
 async def save_presentation(request):
-    user = need(request, "COMMITTEE")
+    user = local_user(request)
     run_id = str(request.path_params["run_id"])
     form = await form_with_csrf(request)
     with _db(request) as cur:
@@ -73,7 +73,7 @@ async def save_presentation(request):
 
 
 async def evidence_page(request, error=None):
-    user = need(request, "EVALUATOR")
+    user = local_user(request)
     score_id = str(request.path_params["score_id"])
     with _db(request) as cur:
         score = q_results.score_detail(cur, score_id)
@@ -91,7 +91,7 @@ async def evidence_page(request, error=None):
 
 
 async def record_decision(request):
-    user = need(request, "COMMITTEE")
+    user = local_user(request)
     score_id = str(request.path_params["score_id"])
     form = await form_with_csrf(request)
     reason = str(form.get("reason", "")).strip()
@@ -111,7 +111,6 @@ async def record_decision(request):
 
 
 async def page_image(request):
-    need(request, "EVALUATOR")
     submission_id = str(request.path_params["submission_id"])
     with _db(request) as cur:
         key = q_results.bid_file_key(cur, submission_id)

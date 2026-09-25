@@ -9,13 +9,11 @@
     {% if rfp %}
     <div class="row"><strong>{{ rfp.file_name }}</strong><span class="muted">{{ rfp.page_count }} pages · uploaded {{ rfp.uploaded }}</span></div>
     {% endif %}
-    {% if user.can_edit %}
     <form method="post" action="/projects/{{ project.tender_id }}/rfp" enctype="multipart/form-data" class="drop">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <label class="field">{% if rfp %}Replace the RFP PDF{% else %}Upload the RFP PDF{% endif %}<input type="file" name="file" accept="application/pdf" required></label>
       <div class="row"><button class="btn primary" type="submit">Upload and find criteria</button><span class="small muted">PDF up to 150 MB</span></div>
     </form>
-    {% endif %}
     <p class="small muted">After upload the evaluation criteria are read from the RFP, wherever they appear, and shown to you to check.</p>
   </section>
 </main>

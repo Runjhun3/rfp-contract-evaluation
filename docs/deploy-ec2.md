@@ -45,11 +45,12 @@ Restart=always
 WantedBy=multi-user.target
 ```
 nginx terminates TLS on 443 and proxies to 127.0.0.1:8000 (`client_max_body_size 160m;`
-for bid uploads). In `.env`: `FILE_STORE=s3`, `COOKIE_SECURE=true`, a long `SESSION_SECRET`.
-Create users with `python run.py create-user ...`.
+for bid uploads). In `.env`: `FILE_STORE=s3`, `COOKIE_SECURE=true`.
+The UI has no login (decisions.md D-024): allow port 443 in the security group
+only from the committee's IPs or VPN, never from 0.0.0.0/0.
 
 ## End-to-end test
-1. Sign in → New project (NSDF details, bid closing date 2026-05-07) → upload the RFP.
+1. Open the UI → New project (NSDF details, bid closing date 2026-05-07) → upload the RFP.
 2. Worker extracts criteria → check them (A.1–B.2 "Scored per" Project/CV, marks per item) → Approve.
 3. Participants: add Deloitte, EY, GT, PwC → upload each bid → Evaluate.
 4. Results: compare with the committee sheet (tests/golden/nsdf/expected_scores.json); open amber

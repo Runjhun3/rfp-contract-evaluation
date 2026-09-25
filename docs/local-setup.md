@@ -41,14 +41,13 @@ cd backend
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python run.py migrate           # applies backend/migrations/*.sql
-python run.py create-user --email you@dept.gov.in --name "Your Name" --role COMMITTEE
-python run.py web               # http://127.0.0.1:8000  (set COOKIE_SECURE=false for plain http)
+python run.py web               # http://127.0.0.1:8000, no login
 python run.py worker            # second terminal: criteria extraction + evaluations
 pytest                          # unit tests
 pytest -m integration           # full UI flow; needs an EMPTY test database + data/golden/nsdf PDFs
 ```
-Roles: VIEWER (projects + results) < EVALUATOR (create, upload, edit criteria, evaluate)
-< COMMITTEE (approve criteria, decisions, presentation marks) < ADMIN.
+No login or roles (decisions.md D-024): the UI opens on Projects and every action
+is recorded as "Local user". Keep it on localhost or a private network.
 
 ## Environment variables
 | Name | Example | Notes |
@@ -63,8 +62,8 @@ Roles: VIEWER (projects + results) < EVALUATOR (create, upload, edit criteria, e
 | LLM_CACHE_DIR | runs/_llm_cache | cached LLM answers (audit trail + free re-runs) |
 | OCR_ENGINE | textract | `tesseract` for local runs without AWS |
 | OCR_MIN_IMAGE_RATIO | 0.25 | image covering this share of a page → OCR |
-| SESSION_SECRET | (64 random chars) | signs the login cookie; `python -c "import secrets;print(secrets.token_urlsafe(48))"` |
-| COOKIE_SECURE | true | `false` only for http://localhost |
+| SESSION_SECRET | (optional) | signs the CSRF cookie; a random key is made at start if empty |
+| COOKIE_SECURE | false | `true` when the UI is served over HTTPS (the VM) |
 | FILE_STORE | local | `s3` on the server; uploads go to S3_BUCKET |
 | LOCAL_FILE_DIR | data/files | local store, and the cache for S3 files |
 | RUNS_DIR | runs | step outputs + page-image cache |

@@ -4,7 +4,7 @@ from starlette.routing import Route
 from app import files
 from app.db import q_bids, q_projects, q_runs
 from app.db.connection import transaction
-from app.web.auth import form_with_csrf, need
+from app.web.auth import form_with_csrf, local_user
 from app.web.common import BadUpload, go, read_pdf_upload, render, stepper
 
 
@@ -13,7 +13,7 @@ def _db(request):
 
 
 async def participants_page(request, error=None):
-    user = need(request)
+    user = local_user(request)
     tender_id = str(request.path_params["tender_id"])
     search = request.query_params.get("q", "")
     with _db(request) as cur:
@@ -31,7 +31,6 @@ async def participants_page(request, error=None):
 
 
 async def set_participants(request):
-    need(request, "EVALUATOR")
     tender_id = str(request.path_params["tender_id"])
     form = await form_with_csrf(request)
     with _db(request) as cur:
@@ -40,7 +39,6 @@ async def set_participants(request):
 
 
 async def add_firm(request):
-    need(request, "EVALUATOR")
     tender_id = str(request.path_params["tender_id"])
     form = await form_with_csrf(request)
     legal = str(form.get("legal_name", "")).strip()
@@ -54,7 +52,7 @@ async def add_firm(request):
 
 
 async def upload_bid(request):
-    user = need(request, "EVALUATOR")
+    user = local_user(request)
     submission_id = str(request.path_params["submission_id"])
     form = await form_with_csrf(request)
     with _db(request) as cur:

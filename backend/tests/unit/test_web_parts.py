@@ -1,15 +1,6 @@
 from decimal import Decimal
 
-from app.web.auth import hash_password, verify_password
 from app.web.common import format_marks, stepper
-
-
-def test_password_hash_round_trip():
-    stored = hash_password("correct horse battery")
-    assert stored.startswith("scrypt$")
-    assert verify_password("correct horse battery", stored)
-    assert not verify_password("wrong", stored)
-    assert not verify_password("anything", None)
 
 
 def test_format_marks():

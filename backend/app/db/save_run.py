@@ -14,7 +14,7 @@ from app.schemas.records import Criterion, Item, Page, RunContext
 from app.storage import read
 
 
-def save_run(settings: Settings, run_dir: Path, tender_name: str, user_email: str) -> str:
+def save_run(settings: Settings, run_dir: Path, tender_name: str) -> str:
     meta = read(run_dir / "run.json")
     ctx = RunContext.model_validate(meta["context"])
     pages = read(run_dir / "pages_labelled.json")
@@ -23,7 +23,7 @@ def save_run(settings: Settings, run_dir: Path, tender_name: str, user_email: st
         cur.execute("select 1 from evaluation_run where run_id = %s", (meta["run_id"],))
         if cur.fetchone():
             return meta["run_id"]
-        user_id = setup.ensure_user(cur, user_email, user_email.split("@")[0])
+        user_id = setup.LOCAL_USER_ID
         tender_id = setup.ensure_tender(cur, ctx, tender_name, user_id)
         criteria = [Criterion.model_validate(c) for c in meta["criteria"]]
         criterion_ids = setup.ensure_criteria(cur, tender_id, criteria)

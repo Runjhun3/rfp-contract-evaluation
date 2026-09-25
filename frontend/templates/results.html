@@ -28,14 +28,14 @@
         <td class="right"><strong>{{ r.docs|marks }}</strong></td>
         {% if presentation %}
         <td class="right"><label class="sr-only" for="p{{ loop.index }}">Presentation marks for {{ r.name }}</label>
-          <input id="p{{ loop.index }}" class="narrow" type="text" name="p_{{ r.submission_id }}" value="{{ r.presentation|marks if r.presentation is not none else '' }}" {% if not user.can_decide %}disabled{% endif %}></td>
+          <input id="p{{ loop.index }}" class="narrow" type="text" name="p_{{ r.submission_id }}" value="{{ r.presentation|marks if r.presentation is not none else '' }}"></td>
         {% endif %}
         <td class="right total">{{ r.total|marks }}</td>
       </tr>
       {% endfor %}
       </tbody>
     </table>
-    {% if presentation and user.can_decide %}<p><button class="btn small" type="submit">Save presentation marks</button></p>{% endif %}
+    {% if presentation %}<p><button class="btn small" type="submit">Save presentation marks</button></p>{% endif %}
   </form>
   <p class="small muted">Amber = needs a committee decision · dotted underline = decided by the committee · document marks are recommendations until accepted or overridden.</p>
 </main>
