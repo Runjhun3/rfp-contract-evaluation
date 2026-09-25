@@ -17,8 +17,8 @@ from app.storage import read
 def save_run(settings: Settings, run_dir: Path, tender_name: str, user_email: str) -> str:
     meta = read(run_dir / "run.json")
     ctx = RunContext.model_validate(meta["context"])
-    pages = [Page.model_validate(p) for p in read(run_dir / "pages_labelled.json")]
-    items = [Item.model_validate(i) for i in read(run_dir / "items.json")]
+    pages = read(run_dir / "pages_labelled.json")
+    items = read(run_dir / "items.json")
     with transaction(settings) as cur:
         cur.execute("select 1 from evaluation_run where run_id = %s", (meta["run_id"],))
         if cur.fetchone():
@@ -31,11 +31,19 @@ def save_run(settings: Settings, run_dir: Path, tender_name: str, user_email: st
         submission_id = setup.ensure_submission(cur, tender_id, ctx.bidder)
         file_id = setup.ensure_file(cur, submission_id, meta, len(pages), user_id)
         setup.insert_run(cur, meta, tender_id, prompt_id, user_id, submission_id, len(items))
-        page_ids = _save_pages(cur, file_id, pages)
-        _save_labels(cur, meta["run_id"], page_ids, pages)
-        save_results(cur, run_dir, meta["run_id"], submission_id, criterion_ids, items)
+        save_output(cur, run_dir, meta["run_id"], submission_id, file_id, criterion_ids)
         cur.execute("update tender set status = 'REVIEW' where tender_id = %s", (tender_id,))
     return meta["run_id"]
+
+
+def save_output(cur, run_dir: Path, run_id: str, submission_id: str, file_id: str,
+                criterion_ids: dict[str, str]) -> None:
+    """Pages, labels, items, judgements, checks and scores of one bidder in one run."""
+    pages = [Page.model_validate(p) for p in read(run_dir / "pages_labelled.json")]
+    items = [Item.model_validate(i) for i in read(run_dir / "items.json")]
+    page_ids = _save_pages(cur, file_id, pages)
+    _save_labels(cur, run_id, page_ids, pages)
+    save_results(cur, run_dir, run_id, submission_id, criterion_ids, items)
 
 
 def _clean(text: str | None) -> str | None:

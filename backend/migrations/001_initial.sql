@@ -10,6 +10,8 @@ create table app_user (
   email       text unique not null,
   full_name   text not null,
   role        text not null check (role in ('ADMIN','EVALUATOR','COMMITTEE','VIEWER')),
+  password_hash text,                                     -- scrypt; null once SSO is used
+  is_active   boolean not null default true,
   created_at  timestamptz not null default now()
 );
 
@@ -19,7 +21,6 @@ create table tender (
   name             text not null,                         -- what the user typed, e.g. "NSDF PMU 2026"
   gem_bid_no       text unique,                           -- GEM/2026/B/7401395 (may be added later)
   department       text,
-  selection_method text not null default 'QBS' check (selection_method in ('QBS','QCBS','L1')),
   bid_due_date     date,                                  -- final closing date, drives date rules
   status           text not null default 'DRAFT' check (status in
                    ('DRAFT','RFP_UPLOADED','CRITERIA_READY','PROMPT_APPROVED',

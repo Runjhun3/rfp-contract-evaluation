@@ -16,6 +16,10 @@ For EVERY criterion and sub-criterion return:
   (used to match bid sections that use different wording)
 - max_marks: number as string, or null for pass/fail
 - max_items: "maximum N projects/CVs considered" as an integer, or null
+- kind: PROJECT if marks are given per past project/assignment, CV if marks are
+  given per proposed person, else null
+- item_marks: every mark ONE item can earn, as strings (e.g. ["1", "1.5", "2"]
+  for value slabs, ["0", "4", "8"] for a CV with two 4-mark parts), else []
 - scored_by: COMMITTEE for presentations/interviews, else LLM
 - rfp_page: the [PDF p. N] where the clause starts
 
@@ -25,7 +29,8 @@ and in the text disagree, return both in "conflict" and do not choose.
 Return exactly this JSON:
 {"criteria": [{"code": "A.1", "parent": "A", "stage": "TECHNICAL", "title": "...",
   "rfp_text": "...", "meaning": "...", "max_marks": "16", "max_items": 8,
-  "scored_by": "LLM", "rfp_page": 34, "conflict": null}]}
+  "kind": "PROJECT", "item_marks": ["2"], "scored_by": "LLM", "rfp_page": 34,
+  "conflict": null}]}
 
 PAGES
 {{pages}}

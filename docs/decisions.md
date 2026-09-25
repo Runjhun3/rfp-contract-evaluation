@@ -3,6 +3,20 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-023 Selection method removed (2026-09-25)
+The system scores only the document-based technical marks; the committee adds
+presentation marks. QBS/QCBS/L1 changed nothing, so the field is gone from the
+UI and the schema. 001_initial.sql was edited in place: it had not been applied
+anywhere except test databases. Add a QCBS mode (with financial bids) only if needed.
+
+## D-022 Server-rendered UI: Starlette + Jinja2, no JS build (2026-09-25)
+Seven screens from the design canvas. One CSS file, one small JS file (progress
+polling), strict CSP, CSRF on every form, server-side role checks, local
+accounts with scrypt until SSO is chosen. Chosen over a React SPA: no node
+toolchain on the VM, less code, easier security review; the trade-off is less
+in-page interactivity, which these screens don't need. One bid PDF per
+participant for now (Replace supported); several files per bidder later.
+
 ## D-021 "Project" means the evaluation cycle; bid sections are `bid_item` (2026-09-25)
 In the UI a user creates a Project = one tender cycle (table `tender`). The
 table that held one credential/CV inside a bid is renamed `bid_item` to avoid

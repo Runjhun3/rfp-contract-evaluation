@@ -6,8 +6,10 @@ Read alongside coding-standards.md and schema.md. Root CLAUDE.md is the index.
 - **Phase 1 (built):** command-line pipeline for one bidder at a time
   (`python run.py evaluate` / `compare`). Each step writes JSON into a run
   folder with the same shapes as schema.md; re-runs skip finished steps.
-- **Phase 2:** Postgres (schema.md) replaces the run folder, the job queue
-  and worker replace the CLI loop, FastAPI adds upload/review endpoints.
+- **Phase 2 (built):** Postgres (schema.md), the job queue + worker, and a
+  server-rendered web UI (Starlette + Jinja2, one CSS file, one small JS file,
+  no build step). The pipeline still writes its step files under RUNS_DIR as a
+  cache and audit trail; results are saved to Postgres when each bidder finishes.
 
 ## Components
 ```
@@ -21,7 +23,7 @@ Read alongside coding-standards.md and schema.md. Root CLAUDE.md is the index.
                         Amazon S3  Textract   Bedrock (Claude Sonnet 4.6)
                         rfp-contract-bucke   ap-south-1
 ```
-- **API process** (`run.py api`): uploads, approvals, run start, review and
+- **Web process** (`run.py web`): uploads, approvals, run start, review and
   export. It never calls Textract or Bedrock directly. It enqueues jobs.
 - **Worker process** (`run.py worker`): pulls one job at a time from the
   `job` table (`FOR UPDATE SKIP LOCKED`). Run 1–4 workers. There is no
@@ -97,17 +99,19 @@ docker-compose.yml          # postgres + pgvector for local dev
 - Vision fallback: pages rendered to PNG (pypdfium2, 150 dpi) are sent only
   when Textract confidence < 0.80 on a page cited as evidence.
 
-## API (first cut)
-| Method + path                                 | Does                                   |
-| --------------------------------------------- | -------------------------------------- |
-| POST /tenders                                 | create tender (GeM no., title, due date) |
-| POST /tenders/{id}/rfp                        | upload RFP → EXTRACT_CRITERIA job      |
-| GET/PUT /tenders/{id}/prompt                  | view/edit criteria block (DRAFT)       |
-| POST /tenders/{id}/prompt/approve             | approve → PROMPT_APPROVED              |
-| POST /tenders/{id}/bids                       | bidder + file → INGEST_FILE job        |
-| GET /tenders/{id}/bids                        | ingestion progress per bid             |
-| POST /tenders/{id}/runs                       | start evaluation run                   |
-| GET /runs/{id}/scores                         | scores, claims, flags                  |
-| POST /scores/{id}/reviews                     | accept / override (reason required)    |
-| PUT /tenders/{id}/presentation/{submission}   | manual 35 marks                        |
-| GET /tenders/{id}/export                      | Annexure III sheet (.xlsx)             |
+## Web routes (server-rendered; the UI design canvas maps 1:1)
+| Screen | Routes | Role |
+| ------ | ------ | ---- |
+| Sign in | GET/POST /login, POST /logout | — |
+| Projects | GET /projects?page=N | VIEWER |
+| New project | GET /projects/new, POST /projects | EVALUATOR |
+| 1 Details & RFP | GET/POST /projects/{id}/rfp → EXTRACT_CRITERIA job | EVALUATOR |
+| 2 Criteria | GET/POST /projects/{id}/criteria, POST …/criteria/approve | EVALUATOR / COMMITTEE approves |
+| 3 Participants & bids | GET/POST /projects/{id}/participants, POST /projects/{id}/firms, POST /submissions/{id}/file | EVALUATOR |
+| 4 Evaluate | POST /projects/{id}/runs → EVALUATE_SUBMISSION jobs; GET /runs/{id}; GET /api/v1/runs/{id}/progress | EVALUATOR |
+| 5 Results | GET /runs/{id}/results, POST /runs/{id}/presentation | VIEWER / COMMITTEE saves |
+| Evidence | GET /scores/{id}?item=&page=, POST /scores/{id}/decision, GET /submissions/{id}/pages/{n}.png | EVALUATOR / COMMITTEE decides |
+
+Every POST carries a CSRF token; every role check runs on the server.
+Security headers: CSP `default-src 'self'` (no inline script/style), X-Frame-Options DENY,
+nosniff, same-origin referrer, HSTS when COOKIE_SECURE.

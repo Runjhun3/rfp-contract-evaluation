@@ -33,17 +33,22 @@ python run.py compare --run runs/nsdf/deloitte --bidder Deloitte \
 - Rough cost per bidder (NSDF, Deloitte): ~25 label calls + ~30 item calls +
   5 criterion calls on Sonnet, and ~250 Textract pages. A few dollars.
 
-## Phase 2 steps (after the database is added)
+## Web UI + worker (full flow)
 ```bash
 cp .env.example .env            # fill in values; never commit .env
-docker compose up -d db         # Postgres 16 + pgvector on localhost:5432
+docker compose up -d db         # Postgres 16 on localhost:5432
 cd backend
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python run.py migrate           # applies backend/migrations/*.sql
-python run.py api               # http://localhost:8000/docs
-python run.py worker            # in a second terminal
+python run.py create-user --email you@dept.gov.in --name "Your Name" --role COMMITTEE
+python run.py web               # http://127.0.0.1:8000  (set COOKIE_SECURE=false for plain http)
+python run.py worker            # second terminal: criteria extraction + evaluations
+pytest                          # unit tests
+pytest -m integration           # full UI flow; needs an EMPTY test database + data/golden/nsdf PDFs
 ```
+Roles: VIEWER (projects + results) < EVALUATOR (create, upload, edit criteria, evaluate)
+< COMMITTEE (approve criteria, decisions, presentation marks) < ADMIN.
 
 ## Environment variables
 | Name | Example | Notes |
@@ -58,7 +63,11 @@ python run.py worker            # in a second terminal
 | LLM_CACHE_DIR | runs/_llm_cache | cached LLM answers (audit trail + free re-runs) |
 | OCR_ENGINE | textract | `tesseract` for local runs without AWS |
 | OCR_MIN_IMAGE_RATIO | 0.25 | image covering this share of a page → OCR |
-| WORKER_CONCURRENCY | 2 | phase 2: jobs processed in parallel per worker |
+| SESSION_SECRET | (64 random chars) | signs the login cookie; `python -c "import secrets;print(secrets.token_urlsafe(48))"` |
+| COOKIE_SECURE | true | `false` only for http://localhost |
+| FILE_STORE | local | `s3` on the server; uploads go to S3_BUCKET |
+| LOCAL_FILE_DIR | data/files | local store, and the cache for S3 files |
+| RUNS_DIR | runs | step outputs + page-image cache |
 | OCR_MIN_CHARS | 50 | below this a page goes to Textract |
 | REVIEW_CONFIDENCE | 0.80 | below this a claim is flagged |
 

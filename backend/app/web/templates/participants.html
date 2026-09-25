@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Participants · {{ project.name }}{% endblock %}
+{% block body %}
+<main class="page">
+  {% include "_project_head.html" %}
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <div class="two">
+    <section class="card">
+      <h2>Who submitted bids?</h2>
+      <form method="get" action="/projects/{{ project.tender_id }}/participants" class="row">
+        <label class="sr-only" for="q">Find a firm</label>
+        <input id="q" type="search" name="q" value="{{ search }}" placeholder="Find a firm">
+        <button class="btn small" type="submit">Find</button>
+      </form>
+      <form method="post" action="/projects/{{ project.tender_id }}/participants">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        {% for f in firms %}
+        <label class="check {% if f.bidder_id in chosen %}on{% endif %}"><input type="checkbox" name="bidder" value="{{ f.bidder_id }}" {% if f.bidder_id in chosen %}checked{% endif %} {% if not user.can_edit %}disabled{% endif %}> {{ f.legal_name }}</label>
+        {% else %}<p class="muted">No firms yet. Add one below.</p>{% endfor %}
+        {% for s in submissions if s.bidder_id not in firms|map(attribute='bidder_id')|list %}
+        <input type="hidden" name="bidder" value="{{ s.bidder_id }}">
+        {% endfor %}
+        {% if user.can_edit and firms %}<button class="btn small" type="submit">Save participants</button>{% endif %}
+      </form>
+      {% if user.can_edit %}
+      <form method="post" action="/projects/{{ project.tender_id }}/firms" class="drop">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label class="field">Firm's legal name<input type="text" name="legal_name" placeholder="e.g. Ernst &amp; Young LLP" required></label>
+        <label class="field">Short name<input type="text" name="short_name" placeholder="e.g. EY"></label>
+        <button class="btn small" type="submit">+ Add firm to this project</button>
+      </form>
+      {% endif %}
+    </section>
+    <section class="card">
+      <h2>{{ submissions|length }} participant{{ '' if submissions|length == 1 else 's' }} · upload each bid</h2>
+      {% for s in submissions %}
+      <div class="bid">
+        <strong>{{ s.short_name }}</strong>
+        <span>{% if s.file_id %}{{ s.file_name }}<br><span class="small muted">{{ s.page_count }} pages · uploaded {{ s.uploaded }}</span>{% else %}<span class="muted">No bid uploaded yet</span>{% endif %}</span>
+        {% if s.file_id %}<span class="chip blue">✓ Ready</span>{% else %}<span class="chip">Waiting for file</span>{% endif %}
+      </div>
+      {% if user.can_edit %}
+      <form method="post" action="/submissions/{{ s.submission_id }}/file" enctype="multipart/form-data" class="row">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label class="sr-only" for="f{{ loop.index }}">Bid PDF for {{ s.short_name }}</label>
+        <input id="f{{ loop.index }}" type="file" name="file" accept="application/pdf" required>
+        <button class="btn small" type="submit">{% if s.file_id %}Replace{% else %}Upload bid{% endif %}</button>
+      </form>
+      {% endif %}
+      {% else %}<p class="muted">Tick the firms that submitted bids.</p>{% endfor %}
+    </section>
+  </div>
+</main>
+<div class="actions">
+  <a href="/projects/{{ project.tender_id }}/criteria">Back to criteria</a>
+  <div class="row">
+    {% if not approved %}<span class="small muted">Criteria must be approved first.</span>
+    {% elif not ready %}<span class="small muted">Upload at least one bid.</span>
+    {% elif ready|length < submissions|length %}<span class="small muted">Participants without a bid are left out of this run.</span>{% endif %}
+    {% if user.can_edit %}
+    <form method="post" action="/projects/{{ project.tender_id }}/runs">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn primary" type="submit" {% if not approved or not ready %}disabled{% endif %}>Evaluate {{ ready|length }} participant{{ '' if ready|length == 1 else 's' }}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

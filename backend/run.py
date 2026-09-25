@@ -7,6 +7,9 @@
   python run.py compare --run runs/nsdf/deloitte --bidder Deloitte \
       --expected tests/golden/nsdf/expected_scores.json
   python run.py migrate                      # apply backend/migrations/*.sql
+  python run.py create-user --email a@b.gov.in --name "A B" --role COMMITTEE
+  python run.py web                          # the UI on http://127.0.0.1:8000
+  python run.py worker                       # background jobs (run alongside web)
   python run.py save-run --run runs/nsdf/deloitte --project "NSDF PMU 2026" --user you@dept.gov.in
 """
 import argparse
@@ -23,6 +26,18 @@ def main() -> None:
     elif args.command == "migrate":
         from app.db.migrate import migrate
         print("applied:", migrate(get_settings()) or "nothing, database is up to date")
+    elif args.command == "create-user":
+        _create_user(args)
+    elif args.command == "web":
+        import uvicorn
+        from app.web.app import create_app
+        uvicorn.run(create_app(get_settings()), host=args.host, port=int(args.port),
+                    proxy_headers=True)
+    elif args.command == "worker":
+        import logging
+        from app.jobs.worker import forever
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+        forever(get_settings())
     elif args.command == "save-run":
         from app.db.save_run import save_run
         print("saved run", save_run(get_settings(), Path(args.run), args.project, args.user))
@@ -49,6 +64,22 @@ def _evaluate(args: argparse.Namespace) -> None:
         print(f"{s.code}: LLM {s.llm_marks} | checked {s.checked_marks}{flag}")
 
 
+def _create_user(args: argparse.Namespace) -> None:
+    import getpass
+    from app.db.connection import transaction
+    from app.web.auth import hash_password
+    password = getpass.getpass("Password (min 12 characters): ")
+    if len(password) < 12:
+        raise SystemExit("Password too short")
+    with transaction(get_settings()) as cur:
+        cur.execute("""insert into app_user (email, full_name, role, password_hash)
+                       values (lower(%s), %s, %s, %s)
+                       on conflict (email) do update set full_name = excluded.full_name,
+                         role = excluded.role, password_hash = excluded.password_hash""",
+                    (args.email, args.name, args.role, hash_password(password)))
+    print("saved", args.email, args.role)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="RFP bid evaluation (phase 1)")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -60,6 +91,14 @@ def _parser() -> argparse.ArgumentParser:
     for name in ("--run", "--bidder", "--expected"):
         cmp.add_argument(name, required=True)
     sub.add_parser("migrate", help="apply pending SQL migrations")
+    user = sub.add_parser("create-user", help="add or update a user (asks for a password)")
+    user.add_argument("--email", required=True)
+    user.add_argument("--name", required=True)
+    user.add_argument("--role", required=True, choices=["ADMIN", "COMMITTEE", "EVALUATOR", "VIEWER"])
+    web = sub.add_parser("web", help="run the UI")
+    web.add_argument("--host", default="127.0.0.1")
+    web.add_argument("--port", default="8000")
+    sub.add_parser("worker", help="run background jobs")
     save = sub.add_parser("save-run", help="load a finished run folder into Postgres")
     for name in ("--run", "--project", "--user"):
         save.add_argument(name, required=True)

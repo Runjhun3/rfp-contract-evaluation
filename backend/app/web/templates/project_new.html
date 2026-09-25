@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}New project{% endblock %}
+{% block body %}
+<main class="page">
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="/projects">Projects</a> / New project</nav>
+  <h1>New project</h1>
+  <form method="post" action="/projects" class="card">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+    <h2>Project details</h2>
+    <label class="field">Project name<input type="text" name="name" value="{{ form.name or '' }}" required></label>
+    <div class="two">
+      <label class="field">GeM bid number<input type="text" name="gem" value="{{ form.gem or '' }}" placeholder="GEM/2026/B/…"></label>
+      <label class="field">Final bid closing date<input type="date" name="due" value="{{ form.due or '' }}" required></label>
+    </div>
+    <p class="hint">Use the date after any extension. Rules like "awarded at least 12 months before bid submission" are counted from it.</p>
+    <label class="field">Department<input type="text" name="department" value="{{ form.department or '' }}"></label>
+    <div class="row"><button class="btn primary" type="submit">Create project and upload RFP</button><a href="/projects">Cancel</a></div>
+  </form>
+</main>
+{% endblock %}

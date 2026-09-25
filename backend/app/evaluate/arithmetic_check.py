@@ -37,7 +37,7 @@ def _item_issues(criterion: Criterion, result: CriterionResult,
             issues.append(f"{row.label}: counted but item was not eligible")
         elif row.marks != source.marks:
             issues.append(f"{row.label}: {row.marks} marks, item said {source.marks}")
-        if row.marks not in criterion.allowed_item_marks:
+        if criterion.allowed_item_marks and row.marks not in criterion.allowed_item_marks:
             issues.append(f"{row.label}: {row.marks} is not an allowed mark "
                           f"{[str(m) for m in criterion.allowed_item_marks]}")
     return issues

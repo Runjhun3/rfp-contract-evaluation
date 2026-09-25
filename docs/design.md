@@ -15,7 +15,7 @@ pages. A committee scores each bid out of 100:
 | B. Quality of team (B.1–B.2, CVs)     | 29        | LLM (rules in prompt); committee confirms   |
 | C. Technical presentation + interview | 35        | Committee only, entered manually            |
 
-The highest total wins (QBS). This service automates the first three rows.
+The highest total wins. This service automates the first three rows.
 
 ## What real bids look like (NSDF tender, 4 bidders)
 

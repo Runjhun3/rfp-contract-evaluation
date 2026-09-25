@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     db_user: str = "rfp"
     db_password: str = ""
 
+    file_store: str = "local"            # local | s3
+    local_file_dir: str = "data/files"   # local store, and the cache for S3 files
+    runs_dir: str = "runs"
+    session_secret: str = ""             # long random string; required to run the web app
+    cookie_secure: bool = True           # False only for http://localhost development
+
     review_confidence: Decimal = Decimal("0.80")
     quote_match_threshold: int = 90      # 0-100, fuzzy match for OCR'd quotes
     amount_tolerance: Decimal = Decimal("0.01")

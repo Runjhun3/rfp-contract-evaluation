@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Projects{% endblock %}
+{% block body %}
+<main class="page">
+  <div class="spread">
+    <div>
+      <h1>Projects</h1>
+      <p class="sub">Each project is one tender cycle: its RFP, its participants and every evaluation run.</p>
+    </div>
+    {% if user.can_edit %}<a class="btn primary" href="/projects/new">+ New project</a>{% endif %}
+  </div>
+  {% if projects %}
+  <table class="table">
+    <thead><tr><th>Project</th><th>GeM bid no.</th><th class="right">Participants</th><th>Stage</th><th>Open reviews</th><th>Created</th></tr></thead>
+    <tbody>
+    {% for p in projects %}
+    <tr class="link-row">
+      <td><a href="/projects/{{ p.tender_id }}"><strong>{{ p.name }}</strong></a><br><span class="small muted">bids closed {{ p.due }}</span></td>
+      <td class="num">{{ p.gem_bid_no or "—" }}</td>
+      <td class="right num">{{ p.participants }}</td>
+      <td><span class="chip {% if p.status in ['REVIEW', 'EVALUATING'] %}blue{% endif %}">{{ p.status|replace('_', ' ')|title }}</span></td>
+      <td>{% if p.open_reviews %}<span class="chip amber">{{ p.open_reviews }} to review</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="muted">{{ p.created }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="row">
+    {% if page > 1 %}<a class="btn small" href="/projects?page={{ page - 1 }}">Previous</a>{% endif %}
+    {% if more %}<a class="btn small" href="/projects?page={{ page + 1 }}">Next</a>{% endif %}
+  </div>
+  {% else %}
+  <div class="card"><h2>No projects yet</h2><p class="muted">Create a project for a tender, upload its RFP, add the participants and evaluate.</p></div>
+  {% endif %}
+</main>
+{% endblock %}

@@ -1,0 +1,13 @@
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/projects">Projects</a> / {{ project.name }}</nav>
+<div>
+  <h1 class="project">{{ project.name }}</h1>
+  <p class="sub">{% if project.gem_bid_no %}{{ project.gem_bid_no }} · {% endif %}{% if project.department %}{{ project.department }} · {% endif %}bids closed {{ project.due }}</p>
+</div>
+<ol class="steps">
+  {% for s in steps %}
+  <li class="{% if s.current %}current{% elif s.done %}done{% endif %}">
+    {% if s.url and not s.current %}<a href="{{ s.url }}">{% if s.done %}✓ {% endif %}{{ s.n }} · {{ s.label }}</a>
+    {% else %}{% if s.done %}✓ {% endif %}{{ s.n }} · {{ s.label }}{% endif %}
+  </li>
+  {% endfor %}
+</ol>

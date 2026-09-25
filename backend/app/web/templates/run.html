@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Evaluating · {{ project.name }}{% endblock %}
+{% block body %}
+<main class="page" data-run-id="{{ run.run_id }}" data-status="{{ run.status }}">
+  {% include "_project_head.html" %}
+  <div class="spread">
+    <div>
+      <h2>Run started {{ run.started }} · criteria v{{ run.prompt_version }}</h2>
+      <p class="sub">You can close this page. Results appear per participant as each one finishes.</p>
+    </div>
+    {% if run.status in ['DONE', 'FAILED'] %}<a class="btn primary" href="/runs/{{ run.run_id }}/results">View results</a>{% endif %}
+  </div>
+  <table class="table">
+    <thead><tr><th>Participant</th><th>Progress</th><th>Now</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><strong>{{ r.short_name }}</strong></td>
+      <td><label class="sr-only" for="bar-{{ r.submission_id }}">Progress of {{ r.short_name }}</label>
+        <progress id="bar-{{ r.submission_id }}" max="100" value="{{ r.percent }}">{{ r.percent }}%</progress></td>
+      <td><span id="label-{{ r.submission_id }}">{{ r.label }}</span>{% if r.error %}<br><span class="small muted">{{ r.error }}</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="two">
+    <div class="card"><h2>Check each item</h2><p class="muted">Each credential or CV is read on its own pages against the approved rules, with the exact words it relied on.</p></div>
+    <div class="card"><h2>Verify and score</h2><p class="muted">Every quote is found on its page again and its value or date re-read. Totals are re-added independently of the AI.</p></div>
+  </div>
+</main>
+{% endblock %}

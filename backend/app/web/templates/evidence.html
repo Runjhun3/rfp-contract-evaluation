@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}{{ score.short_name }} {{ score.code }} · evidence{% endblock %}
+{% block body %}
+<div class="page">
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="/projects">Projects</a> / <a href="/runs/{{ score.run_id }}/results">{{ project.name }} · results</a> / {{ score.short_name }}</nav>
+  <div class="spread">
+    <h1 class="project">{{ score.short_name }} · {{ score.code }} {{ score.title }}</h1>
+    <div class="row num">
+      <span><span class="small muted">Suggested</span> <strong>{{ score.checked_marks|marks }} / {{ score.max_marks|marks }}</strong></span>
+      {% if score.reviewed %}<span class="chip blue">Decided: {{ score.final_marks|marks }}</span>
+      {% elif score.needs_review %}<span class="chip amber">Needs decision · {{ score.review_reasons|join(', ')|replace('_', ' ')|lower }}</span>{% endif %}
+    </div>
+  </div>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+</div>
+<main class="evidence">
+  <section class="list" aria-label="Items">
+    <span class="small muted">{{ items|length }} claimed{% if score.max_items %} · max {{ score.max_items }} counted{% endif %} · {{ score.summary }}</span>
+    {% for i in items %}
+    <a class="item {% if item and i.item_id == item.item_id %}selected{% endif %}" href="?item={{ i.item_id }}">
+      <span>{{ i.title or i.label }}<span class="why">{{ i.count_reason if not i.counted and i.count_reason else i.reason }}</span></span>
+      {% if i.counted %}<span class="counted">Counted · {{ i.marks|marks }}</span>{% else %}<span class="excluded">Excluded</span>{% endif %}
+    </a>
+    {% endfor %}
+  </section>
+  <section aria-label="Checks and decision">
+    {% if item %}
+    <h2>{{ item.title or item.label }}</h2>
+    <p class="muted">Pages {{ item.from_page }}–{{ item.to_page }} · {{ item.reason }}</p>
+    <span class="small muted">Checked independently</span>
+    {% for c in checks %}
+    <div class="chk {% if not c.quote_found or c.value_matches == false %}bad{% endif %}">
+      <strong>{% if c.quote_found and c.value_matches != false %}✓{% else %}!{% endif %}</strong>
+      <span><strong>{{ c.fact|replace('_', ' ') }}</strong>{% if c.quote %}<q>{{ c.quote }}</q>{% endif %}
+        <span class="small muted">{% if c.note %}{{ c.note }}{% elif c.parsed_value %}read as {{ c.parsed_value }}{% else %}found on page ({{ c.match_score }}% match){% endif %}</span></span>
+      {% if c.pdf_page_no %}<a class="small" href="?item={{ item.item_id }}&amp;page={{ c.pdf_page_no }}">p. {{ c.pdf_page_no }}</a>{% else %}<span></span>{% endif %}
+    </div>
+    {% else %}<p class="muted">No checks recorded for this item.</p>{% endfor %}
+    {% endif %}
+    {% if user.can_decide %}
+    <form method="post" action="/scores/{{ score.score_id }}/decision" class="card">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <fieldset class="row"><legend><strong>Committee decision for {{ score.code }}</strong></legend>
+        <label class="check"><input type="radio" name="action" value="ACCEPT" checked> Accept {{ score.checked_marks|marks }}</label>
+        <label class="check"><input type="radio" name="action" value="OVERRIDE"> Override with</label>
+        <label class="sr-only" for="override-marks">Overriding marks</label>
+        <input id="override-marks" class="narrow" type="text" name="marks" disabled>
+      </fieldset>
+      <label class="field">Reason (goes on the record)<textarea name="reason" rows="3" minlength="10" required></textarea></label>
+      <div><button class="btn primary" type="submit">Record decision</button></div>
+    </form>
+    {% endif %}
+    {% if history %}
+    <ul class="history">{% for h in history %}<li>{{ h.decided }} · {{ h.full_name }} · {{ h.action|lower }} {{ h.final_marks|marks }} — {{ h.reason }}</li>{% endfor %}</ul>
+    {% endif %}
+  </section>
+  <section class="viewer" aria-label="Bid page {{ page_no }}">
+    <div class="spread"><strong>Bid page {{ page_no }}</strong>
+      <span class="row">
+        {% if page_no > 1 %}<a class="btn small" href="?item={{ item.item_id if item else '' }}&amp;page={{ page_no - 1 }}" aria-label="Previous page">‹</a>{% endif %}
+        <a class="btn small" href="?item={{ item.item_id if item else '' }}&amp;page={{ page_no + 1 }}" aria-label="Next page">›</a>
+      </span>
+    </div>
+    <img class="pageimg" src="/submissions/{{ score.submission_id }}/pages/{{ page_no }}.png" alt="Page {{ page_no }} of {{ score.short_name }}'s bid">
+  </section>
+</main>
+{% endblock %}

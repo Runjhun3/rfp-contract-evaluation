@@ -13,3 +13,17 @@ def transaction(settings: Settings) -> Iterator[object]:
     with psycopg.connect(settings.db_conninfo()) as conn:
         with conn.cursor() as cur:
             yield cur
+
+
+def all_rows(cur, sql: str, params: tuple = ()) -> list[dict]:
+    cur.execute(sql, params)
+    rows = cur.fetchall()
+    if not rows:
+        return []
+    names = [col[0] for col in cur.description]
+    return [dict(zip(names, row)) for row in rows]
+
+
+def one_row(cur, sql: str, params: tuple = ()) -> dict | None:
+    rows = all_rows(cur, sql, params)
+    return rows[0] if rows else None

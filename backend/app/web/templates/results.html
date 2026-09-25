@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Results · {{ project.name }}{% endblock %}
+{% block body %}
+<main class="page">
+  {% include "_project_head.html" %}
+  {% if open_reviews %}
+  <div class="notice"><strong>{{ open_reviews }} mark{{ '' if open_reviews == 1 else 's' }} need a committee decision</strong> before the sheet can be signed. Click an amber mark to see the evidence.</div>
+  {% endif %}
+  <form method="post" action="/runs/{{ run.run_id }}/presentation">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <table class="table num">
+      <thead><tr>
+        <th>Rank</th><th>Participant</th>
+        {% for c in codes %}<th class="right">{{ c.code }} /{{ c.max_marks|marks }}</th>{% endfor %}
+        <th class="right">Docs /{{ docs_max|marks }}</th>
+        {% if presentation %}<th class="right">{{ presentation.code }} presentation /{{ presentation.max_marks|marks }}</th>{% endif %}
+        <th class="right">Total</th>
+      </tr></thead>
+      <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><strong>{{ r.rank }}</strong></td>
+        <td><strong>{{ r.name }}</strong>{% if r.stage not in ['DONE'] %}<br><span class="small muted">{{ r.stage|title }}</span>{% endif %}</td>
+        {% for c in codes %}
+        {% set cell = r.cells.get(c.code) %}
+        <td class="right">{% if cell %}<a class="cell {% if cell.needs_review and not cell.reviewed %}review{% elif cell.reviewed %}decided{% endif %}" href="/scores/{{ cell.score_id }}">{% if cell.needs_review and not cell.reviewed %}● {% endif %}{{ cell.marks|marks }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+        {% endfor %}
+        <td class="right"><strong>{{ r.docs|marks }}</strong></td>
+        {% if presentation %}
+        <td class="right"><label class="sr-only" for="p{{ loop.index }}">Presentation marks for {{ r.name }}</label>
+          <input id="p{{ loop.index }}" class="narrow" type="text" name="p_{{ r.submission_id }}" value="{{ r.presentation|marks if r.presentation is not none else '' }}" {% if not user.can_decide %}disabled{% endif %}></td>
+        {% endif %}
+        <td class="right total">{{ r.total|marks }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% if presentation and user.can_decide %}<p><button class="btn small" type="submit">Save presentation marks</button></p>{% endif %}
+  </form>
+  <p class="small muted">Amber = needs a committee decision · dotted underline = decided by the committee · document marks are recommendations until accepted or overridden.</p>
+</main>
+<div class="actions">
+  <a href="/projects/{{ project.tender_id }}/participants">Participants</a>
+  <div class="row">
+    {% if open_reviews %}<span class="small muted">Export is available once all decisions are recorded.</span>{% endif %}
+    <button class="btn primary" type="button" disabled>Export Annexure III sheet</button>
+  </div>
+</div>
+{% endblock %}

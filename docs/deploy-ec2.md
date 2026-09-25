@@ -33,16 +33,28 @@ pytest                                        # unit tests
 python run.py migrate                         # creates all tables
 ```
 
-## End-to-end test (before the UI exists)
-```bash
-python run.py evaluate --bid "<path>/Deloitte all docs.pdf" --bidder Deloitte \
-  --tender GEM/2026/B/7401395 --department "Department of Sports, MYAS" \
-  --bid-date 2026-05-07 --criteria tests/golden/nsdf/criteria.json \
-  --block tests/golden/nsdf/criteria_block.md --out runs/nsdf/deloitte
-python run.py compare --run runs/nsdf/deloitte --bidder Deloitte \
-  --expected tests/golden/nsdf/expected_scores.json
-python run.py save-run --run runs/nsdf/deloitte --project "NSDF PMU 2026" --user you@dept.gov.in
+## Run as services (systemd) behind nginx
+```ini
+# /etc/systemd/system/rfp-web.service   (copy as rfp-worker.service with ExecStart=... run.py worker)
+[Service]
+User=rfp
+WorkingDirectory=/opt/rfp-contract-evaluation/backend
+ExecStart=/opt/rfp-contract-evaluation/backend/.venv/bin/python run.py web --host 127.0.0.1 --port 8000
+Restart=always
+[Install]
+WantedBy=multi-user.target
 ```
+nginx terminates TLS on 443 and proxies to 127.0.0.1:8000 (`client_max_body_size 160m;`
+for bid uploads). In `.env`: `FILE_STORE=s3`, `COOKIE_SECURE=true`, a long `SESSION_SECRET`.
+Create users with `python run.py create-user ...`.
+
+## End-to-end test
+1. Sign in → New project (NSDF details, bid closing date 2026-05-07) → upload the RFP.
+2. Worker extracts criteria → check them (A.1–B.2 "Scored per" Project/CV, marks per item) → Approve.
+3. Participants: add Deloitte, EY, GT, PwC → upload each bid → Evaluate.
+4. Results: compare with the committee sheet (tests/golden/nsdf/expected_scores.json); open amber
+   marks, record decisions, enter presentation marks.
+The CLI path (`run.py evaluate` / `compare`) still works for one bidder without the UI.
 
 ## Backups
 - Nightly `pg_dump -Fc rfp_eval` to `s3://rfp-contract-bucke/backups/` (SSE-KMS,

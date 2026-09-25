@@ -5,6 +5,8 @@ first page of a CV) and runs until the next item start or a section-level page
 (claim summary, marketing). Each item belongs to exactly one criterion; a project
 repeated under A.1, A.2 and A.3 becomes three items (copies).
 """
+import unicodedata
+
 from app.schemas.records import Item, Page
 
 START_TYPES = {"PROJECT_HEADER", "CV"}
@@ -49,8 +51,8 @@ def _close(items: list[Item], current: Item | None) -> None:
 
 def _title(page: Page) -> str:
     """First line that reads like a heading: several words, not a footer."""
-    for line in page.full_text().splitlines():
-        line = line.strip()
+    for raw in page.full_text().splitlines():
+        line = "".join(ch for ch in raw if unicodedata.category(ch)[0] != "C").strip()
         if "©" in line or sum(w.isalpha() for w in line.split()) < 3:
             continue
         return line[:160]
