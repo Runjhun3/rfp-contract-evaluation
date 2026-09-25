@@ -1,40 +1,47 @@
 Bidder: {{bidder}}
 Item: {{label}} ({{kind}})
-The bidder claims this item under: {{claimed_codes}}
+Submitted under criterion: {{code}}
 
 TASK
-1. Read the pages below and extract the facts.
-2. For EACH criterion code in the claim list above, decide whether this item
-   is eligible under that criterion's rules, and the marks it would earn if
-   counted. Do not apply "maximum N projects" here: that is done later.
-3. For a CV: judge each sub-criterion (meeting criteria, prior experience)
-   separately and give its marks.
+1. Read the pages below and extract the facts. For every fact give the
+   value, the page and the exact quote it comes from.
+2. Decide if this item is eligible under criterion {{code}} and the marks it
+   would earn if counted. Do NOT apply "maximum N items" here; that is done later.
+3. List in relies_on every fact your decision depends on
+   (e.g. ["value_inr", "end_on", "is_completed"]).
+4. For a CV: judge each sub-criterion (meeting criteria, prior experience)
+   separately, with quotes, and give its marks.
 
-Return exactly this JSON:
+A fact object is: {"value": "...", "page": 306, "quote": "exact words from that page"}
+Use null for a fact that is not on the pages.
+
+Return JSON in this shape (the // comments are for you; do not output them):
 {
   "label": "{{label}}",
+  "code": "{{code}}",
   "facts": {
-    "client": "string or null",
-    "country": "IN or other ISO code or null",
-    "awarded_on": "YYYY-MM-DD or null",
-    "start_on": "YYYY-MM-DD or null",
-    "end_on": "YYYY-MM-DD or null",
-    "duration_months": "number as string or null",
-    "value_inr": "number as string or null",
-    "is_completed": true | false | null,
-    "evidence": {"work_order": [page numbers], "completion_or_ca": [page numbers]},
-    "cv": {"degree": "...", "years_experience": "...", "sports_or_govt_experience": "..."} or null
+    "title": fact,
+    "client": fact,
+    "country": fact,
+    "awarded_on": fact,          // value as YYYY-MM-DD
+    "start_on": fact,            // value as YYYY-MM-DD
+    "end_on": fact,              // value as YYYY-MM-DD
+    "value_inr": fact,           // value as plain rupees, e.g. "90600000"
+    "is_completed": fact         // value "true" or "false"
   },
-  "judgements": [
-    {
-      "code": "A.2",
-      "eligible": true | false,
-      "marks": "number as string (0 if not eligible)",
-      "reason": "one sentence",
-      "evidence_pages": [page numbers],
-      "confidence": 0.0-1.0
-    }
-  ]
+  "evidence": {"work_order": [page numbers], "completion_or_ca": [page numbers]},
+  "cv": null or {
+    "degree": fact,
+    "years_experience": fact,
+    "sports_or_govt_experience": fact,
+    "sub_marks": {"meeting_criteria": "number as string", "prior_experience": "number as string"}
+  },
+  "relies_on": ["fact names"],
+  "eligible": true | false,
+  "marks": "number as string (0 if not eligible)",
+  "reason": "one sentence",
+  "confidence": 0.0-1.0,
+  "suspicious_text": [{"page": 0, "quote": "..."}]
 }
 
 PAGES

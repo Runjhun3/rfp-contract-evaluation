@@ -9,8 +9,8 @@ tender ─┬─ tender_document (RFP PDF)
         ├─ criterion (A.1, A.2 ... from Annexure III)
         ├─ evaluation_prompt (criteria block, versioned, approved)
         ├─ bid_submission ─┬─ submission_file ── page
-        │                  └─ project (a project or CV, facts read once)
-        ├─ evaluation_run ─┬─ claim (project × criterion)
+        │                  └─ project (one section or CV, one criterion; copies grouped)
+        ├─ evaluation_run ─┬─ claim ── evidence_check (quotes verified by Python)
         │                  └─ criterion_score ── review_decision
         ├─ manual_score (presentation marks)
         └─ job (background work queue)
@@ -52,6 +52,7 @@ create table criterion (
   stage        text not null check (stage in ('ELIGIBILITY','TECHNICAL','PRESENTATION')),
   title        text not null,
   rfp_text     text not null,                   -- verbatim clause
+  meaning      text not null,                   -- one plain sentence; used to map bid sections by meaning
   max_marks    numeric(5,2),
   max_items    int,                             -- 8 / 5 / 4; null = no cap
   scored_by    text not null check (scored_by in ('LLM','COMMITTEE')),
@@ -110,18 +111,21 @@ create table page (
   page_type        text,                        -- CLAIM_SUMMARY / PROJECT_HEADER / WORK_ORDER /
                                                 -- COMPLETION_CERT / CA_CERT / CV / DECLARATION /
                                                 -- MARKETING / BLANK / OTHER
-  criterion_hint   text,                        -- 'A.2' read from a page header
+  criterion_code   text,                        -- criterion this page responds to, mapped by MEANING
+  map_confidence   numeric(4,3),
   label_prompt_version text,                    -- e.g. page_label_v1
   embedding        vector(1024),                -- nullable; phase 2
   unique (file_id, pdf_page_no)
 );
 
-create table project (                          -- one past project or one CV, read once
+create table project (                          -- one project section or one CV, under ONE criterion
   project_id      uuid primary key,
   submission_id   uuid not null references bid_submission,
   kind            text not null check (kind in ('PROJECT','CV')),
   label           text not null,                -- bidder's own label, e.g. 'Credential-7'
-  claimed_codes   text[] not null,              -- criteria the bidder claims it for, e.g. {A.2,A.3}
+  criterion_code  text not null,                -- a repeated project = one row per criterion (copies)
+  map_confidence  numeric(4,3) not null,
+  copy_group      uuid,                         -- same real project across criteria; set by COPY_CHECK
   from_pdf_page   int not null,
   to_pdf_page     int not null,
   source          text not null check (source in ('HEADER','SUMMARY','SEARCH','MANUAL')),
@@ -133,6 +137,7 @@ create table project (                          -- one past project or one CV, r
   value_inr       numeric(15,2),
   is_completed    boolean,
   evidence        jsonb,                        -- {"work_order":[285],"completion_or_ca":[306]}
+  fact_quotes     jsonb,                        -- {"value_inr":{"page":306,"quote":"..."} ...}
   cv_facts        jsonb                         -- CV only: degree, years, sports/govt experience
 );
 ```
@@ -162,7 +167,21 @@ create table claim (                            -- a project judged under ONE cr
   reason         text not null,
   evidence_pages int[] not null,
   confidence     numeric(4,3) not null,
+  relies_on      text[] not null,               -- facts the decision depends on
   unique (run_id, project_id, criterion_id)
+);
+
+create table evidence_check (                   -- one row per quote Python verified
+  check_id      bigserial primary key,
+  claim_id      uuid not null references claim,
+  fact          text not null,                  -- 'value_inr', 'end_on', 'work_order_present' ...
+  pdf_page_no   int,
+  quote         text,
+  quote_found   boolean not null,               -- exact or fuzzy (>= 90) match on that page
+  match_score   numeric(5,2),
+  parsed_value  text,                           -- what Python read from the quote
+  value_matches boolean,                        -- parsed_value equals the fact used (1% for money)
+  created_at    timestamptz default now()
 );
 
 create table criterion_score (
@@ -174,7 +193,7 @@ create table criterion_score (
   checked_marks  numeric(5,2) not null,         -- Python: sum of counted claim marks, capped
   arithmetic_ok  boolean not null,              -- llm_marks = checked_marks and caps respected
   needs_review   boolean not null,
-  review_reasons text[] not null default '{}',  -- ARITHMETIC / LOW_CONFIDENCE / OCR / MISSING_FACT ...
+  review_reasons text[] not null default '{}',  -- codes listed in pipeline.md ("Review flags")
   raw_response   jsonb not null,
   unique (run_id, submission_id, criterion_id)
 );
@@ -209,7 +228,7 @@ create table job (
   job_id      bigserial primary key,
   tender_id   uuid not null references tender,
   kind        text not null check (kind in ('INGEST_FILE','OCR_PAGES','LABEL_PAGES',
-              'BUILD_PROJECTS','EVAL_ITEM','EVAL_CRITERION','EXTRACT_CRITERIA')),
+              'BUILD_PROJECTS','EVAL_ITEM','COPY_CHECK','EVAL_CRITERION','EXTRACT_CRITERIA')),
   ref_id      uuid not null,                    -- file_id / project_id / run_id ...
   status      text not null default 'PENDING' check (status in
               ('PENDING','RUNNING','DONE','FAILED')),
@@ -245,5 +264,7 @@ create index on page using gin (to_tsvector('english', text));
 create index on page using hnsw (embedding vector_cosine_ops);  -- phase 2
 create index on project (submission_id);
 create index on claim (run_id, criterion_id);
+create index on evidence_check (claim_id);
+create index on project (submission_id, copy_group);
 create index on job (status, run_after);
 ```

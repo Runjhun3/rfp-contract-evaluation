@@ -9,14 +9,14 @@ file lists what exists and how the pieces fit together.
 | `system_v1.md` | every evaluation call | — | role + general rules |
 | `criteria_extraction_v1.md` | EXTRACT_CRITERIA | RFP Annexure II/III pages | criterion list JSON |
 | `page_label_v1.md` | LABEL_PAGES | ~20 page snippets | page_type per page |
-| `item_eval_v1.md` | EVAL_ITEM | one project's / CV's pages | facts + per-criterion judgement |
+| `item_eval_v1.md` | EVAL_ITEM | one item's pages (one criterion) | facts with quotes + judgement |
 | `criterion_eval_v1.md` | EVAL_CRITERION | item results JSON | counted items + marks |
 
 ## How an item call is assembled
 ```
 system:  system_v1.md                           ┐ identical for every item call
          + evaluation_prompt.criteria_block     ┘ in a run → cache point here
-user:    item_eval_v1.md (filled: bidder, label, claimed_codes)
+user:    item_eval_v1.md (filled: bidder, label, kind, code)
          + pages: "[PDF p. 285]\n<text>\n\n[PDF p. 286]\n<text> ..."
 ```
 The criteria block is tender data (DB, human-approved). An NSDF example is
@@ -28,7 +28,8 @@ in `tests/golden/nsdf/criteria_block.md`.
 | `{{department}}` | tender.department |
 | `{{bid_due_date}}` | tender.bid_due_at (date, IST) |
 | `{{bid_due_minus_12m}}` | computed in Python, never by the LLM |
-| `{{bidder}}`, `{{label}}`, `{{kind}}`, `{{claimed_codes}}` | bidder / project |
+| `{{bidder}}`, `{{label}}`, `{{kind}}` | bidder / project |
+| `{{criteria_list}}` | every criterion as `code — meaning`, one per line |
 | `{{pages}}` | page rows, each prefixed `[PDF p. N]` |
 | `{{item_results}}` | JSON of all EVAL_ITEM judgements for one criterion, with bidder order |
 | `{{code}}`, `{{max_items}}`, `{{max_marks}}` | criterion |

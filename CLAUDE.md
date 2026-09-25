@@ -20,18 +20,25 @@ index. Read the file that matches your task before changing anything.
 Living design doc (discussion + history):
 https://claude.ai/code/artifact/faf974c3-74c4-4865-8160-4fdec63be5c0
 
-## The five rules you must not break
+## The six rules you must not break
 1. Only two inputs: the RFP PDF and the bid PDFs. Nothing else is scored.
 2. Evaluation rules live in versioned prompt files, never in Python `if`s.
 3. Python checks every number the LLM returns (Decimal). A mismatch goes to
    review. It is never silently corrected.
-4. `pdf_page_no` is the only page reference. Every fact cites one.
-5. No secret in code, logs or git. `.env` is git-ignored.
+4. `pdf_page_no` is the only page reference. Every fact cites a page AND an
+   exact quote; Python verifies the quote is on that page and states the value.
+5. Map by meaning, not by wording: criteria and bid sections are matched on
+   what they mean, never by regex on headings or annexure names.
+6. No secret in code, logs or git. `.env` is git-ignored.
 
 ## Glossary
 - **Tender**: one GeM bid (e.g. GEM/2026/B/7401395). The root of all data.
 - **Criterion**: one scoring line from RFP Annexure III (A.1, A.2, B.1 ...).
 - **Submission**: one bidder's upload for one tender.
-- **Project**: one past assignment or one CV inside a bid. It is read once.
-- **Claim**: a project judged under one criterion in one run.
+- **Project (item)**: one project section or one CV inside a bid, submitted
+  under one criterion. A project repeated under A.1/A.2/A.3 is three items
+  (copies) linked by `copy_group`; Python checks copies agree.
+- **Claim**: an item judged under its criterion in one run.
+- **Evidence check**: Python's verification that a quote is on its page and
+  states the value/date used.
 - **Run**: one evaluation pass, pinned to one prompt version and one model.

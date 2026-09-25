@@ -13,6 +13,17 @@ Must-have unit tests:
 - `build_projects`: header-to-header boundaries, CV sections, a missing header.
 - `prompts.py`: a missing placeholder raises an error. Loading an unknown version raises an error.
 - LLM JSON parsing: invalid JSON → one retry → fail.
+- `parse_amount`: "INR 9.06 Crore", "Rs. 9,06,00,000/-", "₹ 906 lakh",
+  "Rs 90.6 million" (→ flag, not parsed), "9.06 Cr (inclusive of GST)".
+- `parse_date`: "31.03.2023", "31/03/2023", "31st March 2023", "March 2023"
+  (month-only → flag), never month-first.
+- `evidence_check`: quote on page (exact), quote with OCR noise (fuzzy ≥ 90),
+  quote on a different page (fail), quote present but value differs (fail),
+  counted item with no completion/CA page (fail).
+- `copy_check`: same project under A.2 and A.3 with equal facts (pass) and
+  with different values (COPY_MISMATCH on both).
+- Mapping: a header worded differently from the RFP still maps to the right
+  criterion (recorded LLM fixture), and low confidence raises MAPPING_UNSURE.
 
 ## Golden test: NSDF (GEM/2026/B/7401395)
 Files are NOT in git (confidential). Put them in `data/golden/nsdf/`:
@@ -35,7 +46,10 @@ Pass criteria:
    Credential-7, -8 (6 months), -9 (4 months), -10 (outside India),
    -11 (awarded Feb 2026).
 4. Every counted claim cites at least one work order page and one
-   completion/CA page.
+   completion/CA page, and every relied-on quote passes the evidence check
+   (or is flagged EVIDENCE_UNVERIFIED with a visible reason).
+5. Deloitte's SAG Gujarat copies (A.1, A.2, A.3) are grouped in one
+   `copy_group` and agree, or are flagged COPY_MISMATCH.
 
 Known errors in the answer key (don't "fix" the system to match them):
 - GT B.2 cites p.684 (a blank page); the CVs are at pp.755–781.

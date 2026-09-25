@@ -3,6 +3,30 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-015 Out of scope for now (2026-09-25)
+Comparing judgements across bidders, certificate authenticity (forgery,
+UDIN), stamp/signature detection. Each bid is evaluated only on its own
+evidence.
+
+## D-014 Map by meaning, not by wording (2026-09-25)
+RFPs and bids word the same criterion differently. Criteria are extracted
+with a plain `meaning`; pages and items are mapped to criteria by the LLM
+against that meaning, with a confidence. No regex on headings or annexure
+names. Keeps the system usable on RFPs other than NSDF.
+
+## D-013 Each copy of a project is its own item; copies must agree (2026-09-25)
+Supersedes the "read once" part of D-005. Bidders repeat the full document
+set per criterion. Each copy is judged under its own criterion; COPY_CHECK
+groups copies and flags any disagreement on client, value or dates.
+
+## D-012 Python verifies every relied-on quote (2026-09-25)
+The LLM returns page + exact quote for every fact its decision depends on.
+Python checks the quote is on that page (exact, or fuzzy >= 90 for OCR) and
+states the value/date used. Failure flags the item; it never auto-corrects.
+The same check blunts hidden instructions in bid text: a mark can't stand
+without verifiable evidence. Prompt v1 files were revised before first use,
+so no v2 was needed.
+
 ## D-010 Python service (2026-09-25)
 The team's AWS setup and scripts are Python. Decision: FastAPI + SQLAlchemy +
 Alembic, with a Postgres-backed job queue (no Celery or Redis). One less moving

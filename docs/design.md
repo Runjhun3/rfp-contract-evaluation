@@ -34,16 +34,27 @@ What follows from this:
   numbers are wrong in places (GT PDF p.94 is printed "76").
 - **Bidders pad their bids.** Deloitte claimed 11 projects for A.1, where
   the max is 8, and 6 passed. Every item needs a counted/excluded reason.
-- **Projects are reused across criteria** (A.2 and A.3). Read each
-  project once and judge it per criterion.
+- **Bidders repeat projects across criteria** with a fresh copy of the
+  documents each time (Deloitte's SAG Gujarat appears under A.1, A.2 and
+  A.3). Each copy is its own item for its criterion; Python checks the
+  copies agree on client, value and dates.
+- **Wording differs everywhere.** RFPs and bids name the same thing
+  differently, so criteria and bid sections are matched by meaning, never
+  by exact text.
+- **Quotes must be checked.** The LLM can misread a scanned value or quote
+  the wrong page. Every fact it relies on carries a page and an exact quote
+  that Python verifies.
 
 ## Core approach
 1. The RFP is uploaded. The LLM extracts the criteria, a human approves them,
    and they become an evaluation prompt (versioned).
 2. Bids are uploaded under the tender. Pages are OCR'd and labelled, and
    projects are cut out.
-3. **Item call:** one LLM call per project/CV decides eligibility per criterion,
-   with a reason and page citations.
+3. **Item call:** one LLM call per item (a project section or CV, one
+   criterion) decides eligibility, with a reason and a page + exact quote
+   for every fact it relies on.
+   **Checks in Python:** the quote is on the page and states the value/date;
+   copies of the same project agree.
 4. **Criterion call:** one small LLM call per criterion applies "max N,
    keep best" and returns marks.
 5. Python re-checks the arithmetic. The committee accepts or overrides, with a
@@ -65,6 +76,10 @@ a prompt version and a model.
 | Max N policy  | Best N by marks. On a tie, the one the bidder listed first.   |
 | Eligibility   | "Document present on page X" only; no stamp/signature check   |
 | Presentation  | Fully manual (35 marks)                                       |
+| Evidence      | Python verifies every relied-on quote on its page             |
+| Copies        | Each copy = own item; copies must agree, else flagged         |
+| Mapping       | By meaning (LLM vs `criterion.meaning`), never by exact text  |
+| Out of scope  | Cross-bidder comparison, forgery/UDIN checks, stamp detection |
 | Service       | Python (FastAPI), Postgres-backed job queue                   |
 
 See decisions.md for the reasoning behind each.

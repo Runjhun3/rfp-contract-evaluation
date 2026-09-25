@@ -51,7 +51,9 @@ backend/
     aws/                    # clients.py, s3.py, textract.py
     llm/                    # bedrock.py (only Bedrock caller), prompts.py (load + fill)
     ingest/                 # split_pages.py, ocr_pages.py, label_pages.py, build_projects.py
-    evaluate/               # item_eval.py, criterion_eval.py, arithmetic_check.py, flags.py
+    evaluate/               # item_eval.py, evidence_check.py, copy_check.py,
+                            # criterion_eval.py, arithmetic_check.py, flags.py
+                            # parse_amount.py, parse_date.py (used by evidence_check)
     export/                 # annexure_sheet.py (committee Excel format)
     jobs/                   # queue.py (enqueue/claim/finish), worker.py, handlers.py
     schemas/                # Pydantic models: api bodies + LLM outputs
@@ -75,6 +77,8 @@ docker-compose.yml          # postgres + pgvector for local dev
 | PDF text + render  | pypdfium2                      | Apache/BSD licence (avoid AGPL PyMuPDF) |
 | AWS                | boto3                          | S3, Textract, bedrock-runtime          |
 | Excel export       | openpyxl                       |                                        |
+| Fuzzy quote match  | rapidfuzz                      | OCR-tolerant quote check, copy grouping |
+| Date parsing       | python-dateutil                | day-first Indian dates                 |
 | Tests              | pytest                         |                                        |
 
 ## Bedrock usage

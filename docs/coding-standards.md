@@ -13,6 +13,10 @@ CLAUDE.md is the index that points here.
    proposes item marks by the rules in the prompt. Python recomputes every
    total, cap and item count from the item list. On any mismatch it sets
    `needs_review = true` and stores both values. It never silently corrects.
+   The same goes for evidence: every fact the LLM relies on comes with a
+   page and an exact quote, and `evaluate/evidence_check.py` must confirm
+   the quote is on that page and states that value/date before the item
+   can pass without review.
 5. Money is `Decimal` (rupees) — never float. Marks are `Decimal` too.
    Parse with `Decimal(str(x))`, never `Decimal(float)`.
 6. Secrets live only in `.env` (git-ignored) locally and in AWS Secrets
@@ -21,7 +25,12 @@ CLAUDE.md is the index that points here.
    carries `run_id`.
 8. Pages are referenced by `pdf_page_no` (1-based) only. Never by printed
    page number.
-9. Append-only for decisions: never UPDATE or DELETE `claim`,
+9. Map by meaning. No regex or string matching on RFP headings, annexure
+   names or bidder labels to decide which criterion something belongs to.
+   The LLM maps against the tender's `criterion.meaning`; code only reads
+   the result and its confidence. (Regex is fine for parsing numbers and
+   dates inside a verified quote.)
+10. Append-only for decisions: never UPDATE or DELETE `claim`,
    `criterion_score` or `review_decision`. A re-run writes new rows.
 
 ## Prompt rules
