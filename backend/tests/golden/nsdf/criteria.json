@@ -1,0 +1,32 @@
+{
+  "tender": "GEM/2026/B/7401395",
+  "source": "RFP_Document_NSDF.pdf, Annexure III, pp. 34-35 (as extracted and approved)",
+  "note": "Technical criteria scored from documents (65 marks). Eligibility and presentation are not in this file.",
+  "criteria": [
+    {
+      "code": "A.1", "kind": "PROJECT", "title": "PMU assignments in sports",
+      "meaning": "Completed PMU (project management unit) assignments of at least one year for a Central or State Government sports department, awarded at least 12 months before bid submission",
+      "max_marks": "16", "max_items": 8, "allowed_item_marks": ["2"]
+    },
+    {
+      "code": "A.2", "kind": "PROJECT", "title": "Sports consulting projects >= Rs 1 crore",
+      "meaning": "Completed sports consulting projects worth Rs 1 crore or more for central/state government sports departments or sports promotion organisations, marked by project value",
+      "max_marks": "10", "max_items": 5, "allowed_item_marks": ["1", "1.5", "2"]
+    },
+    {
+      "code": "A.3", "kind": "PROJECT", "title": "Government consulting projects > Rs 5 crore",
+      "meaning": "Completed consulting projects worth more than Rs 5 crore, each at least one year long, for any Central or State Government department",
+      "max_marks": "10", "max_items": 4, "allowed_item_marks": ["2.5"]
+    },
+    {
+      "code": "B.1", "kind": "CV", "title": "Project Manager CV",
+      "meaning": "CV of the proposed Project Manager: MBA/PGDM or relevant master's with 10+ years in CSR, fundraising, project management, partnerships, marketing or sales, and prior sports or government experience",
+      "max_marks": "8", "max_items": 1, "allowed_item_marks": ["0", "4", "8"]
+    },
+    {
+      "code": "B.2", "kind": "CV", "title": "Senior Consultant (Sports) CVs",
+      "meaning": "CVs of the three proposed Senior Consultants (Sports): MBA/PGDM, relevant master's or BTech with 7+ years in the same fields, and prior sports or government experience",
+      "max_marks": "21", "max_items": 3, "allowed_item_marks": ["0", "3", "4", "7"]
+    }
+  ]
+}

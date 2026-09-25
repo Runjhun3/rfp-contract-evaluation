@@ -25,11 +25,15 @@ Two rules run through every step:
 | Step | Job | What happens |
 | ---- | --- | ------------ |
 | 1 | INGEST_FILE | sha256 check (re-upload = no-op). Store in S3. pypdfium2 reads the text layer of every page → `page` rows. `pages_done` updated as it goes, so the job can resume. |
-| 2 | OCR_PAGES | Pages with < 50 chars of text are bundled into one PDF under `tmp/<file_id>/` and sent to Textract `StartDocumentTextDetection` (async). Text + confidence go back into `page`. tmp object deleted. |
+| 2 | OCR_PAGES | Pages with < 50 chars of text **or an image covering ≥ 25% of the page** are bundled into one PDF under `tmp/<file_id>/` and sent to Textract `StartDocumentTextDetection` (async). Text + confidence go back into `page`. tmp object deleted. |
 | 3 | LABEL_PAGES | Batches of ~20 pages (first 1,500 chars each) + the tender's criterion list (`code — meaning`) with `page_label_v1.md`. Sets `page_type`, and for summary/header/CV pages the `criterion_code` whose **meaning** matches, with `map_confidence`. Also checks the cover page for the GeM bid no. |
 | 4 | BUILD_PROJECTS | Deterministic Python. Each `PROJECT_HEADER` page starts an item that runs until the next header, CV or section break. **Each item belongs to exactly one criterion.** If a bidder repeats the same project under A.1, A.2 and A.3, that is three items (three copies). Items are cross-checked against the `CLAIM_SUMMARY` page (count, page ranges); differences are flagged. |
 
-For NSDF expect ~0% OCR (EY, PwC) up to ~62% (GT: 505 of 819 pages).
+Why the image rule: bidders put a typed caption ("Documentary Evidence 5:
+Letter of Completion") above a scanned certificate. A text-length rule alone
+sends only 54 of Deloitte's pages to OCR; the image rule sends 253, which is
+where the work orders and completion letters are.
+For NSDF expect a few pages (EY, PwC) up to most of the evidence (GT, Deloitte).
 Start ingestion as soon as a bid is uploaded, not when the run starts.
 
 ## 3. Evaluation run
@@ -47,7 +51,7 @@ For every item the LLM marks eligible:
 1. It cites at least one work-order page and one completion/CA page.
 2. For every fact in `relies_on` (e.g. `value_inr`, `end_on`), the quote is
    found on the cited page: exact match after normalising whitespace and
-   case, else fuzzy match ≥ 90 (rapidfuzz `partial_ratio`) to tolerate OCR noise.
+   case, else fuzzy match ≥ 90 (difflib partial match) to tolerate OCR noise.
 3. The quote actually states the value used: amounts are parsed to rupees
    (₹, Rs., INR, crore/Cr, lakh/lac, Indian digit grouping) and must match the
    fact within 1%; dates are parsed day-first and must match exactly.

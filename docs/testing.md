@@ -26,6 +26,7 @@ Must-have unit tests:
   criterion (recorded LLM fixture), and low confidence raises MAPPING_UNSURE.
 
 ## Golden test: NSDF (GEM/2026/B/7401395)
+Run it with the phase-1 commands in local-setup.md (`evaluate` then `compare`).
 Files are NOT in git (confidential). Put them in `data/golden/nsdf/`:
 RFP_Document_NSDF.pdf, Deloitte/EY/GT/PwC "all docs" PDFs.
 Expected results: `tests/golden/nsdf/expected_scores.json`, from the

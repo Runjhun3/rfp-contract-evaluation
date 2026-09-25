@@ -2,6 +2,13 @@
 
 Read alongside coding-standards.md and schema.md. Root CLAUDE.md is the index.
 
+## Build phases
+- **Phase 1 (built):** command-line pipeline for one bidder at a time
+  (`python run.py evaluate` / `compare`). Each step writes JSON into a run
+  folder with the same shapes as schema.md; re-runs skip finished steps.
+- **Phase 2:** Postgres (schema.md) replaces the run folder, the job queue
+  and worker replace the CLI loop, FastAPI adds upload/review endpoints.
+
 ## Components
 ```
  Committee UI ──HTTP──▶ FastAPI (app/api) ──▶ services ──▶ PostgreSQL + pgvector
@@ -42,7 +49,7 @@ reads the cover page and sets `bid_submission.cover_check`.
 ## Folder layout
 ```
 backend/
-  run.py                    # `python run.py api|worker|migrate`
+  run.py                    # phase 1: `evaluate`, `compare`; phase 2 adds `api|worker|migrate`
   app/
     config.py               # pydantic-settings, reads .env
     api/                    # one file per resource: tenders, bids, runs, reviews, export
@@ -77,7 +84,7 @@ docker-compose.yml          # postgres + pgvector for local dev
 | PDF text + render  | pypdfium2                      | Apache/BSD licence (avoid AGPL PyMuPDF) |
 | AWS                | boto3                          | S3, Textract, bedrock-runtime          |
 | Excel export       | openpyxl                       |                                        |
-| Fuzzy quote match  | rapidfuzz                      | OCR-tolerant quote check, copy grouping |
+| Fuzzy quote match  | difflib (standard library)     | OCR-tolerant quote check, copy grouping |
 | Date parsing       | python-dateutil                | day-first Indian dates                 |
 | Tests              | pytest                         |                                        |
 

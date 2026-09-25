@@ -1,0 +1,7 @@
+boto3>=1.39          # Bedrock (supports AWS_BEARER_TOKEN_BEDROCK), S3, Textract
+pydantic>=2.6
+pydantic-settings>=2.2
+pypdfium2>=4.30      # PDF text + page rendering (Apache/BSD)
+python-dateutil>=2.9
+pillow>=10           # rendering pages for local OCR
+pytest>=8

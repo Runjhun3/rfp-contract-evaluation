@@ -22,11 +22,14 @@ For each page below:
    assignments above INR 1 crore" responds to the criterion about sports
    consulting projects of value 1 crore and above). The bidder's own label is
    only a hint. If nothing fits, null. Give map_confidence 0.0-1.0.
-3. If a page shows a GeM bid number, return it in gem_bid_no, else null.
+3. Set item_start = true only on the FIRST page of one project's section or of
+   one CV (the page that names the project/person). Continuation pages of the
+   same project or CV are false.
+4. If a page shows a GeM bid number, return it in gem_bid_no, else null.
 
 Return exactly this JSON:
 {"pages": [{"pdf_page_no": 1, "page_type": "...", "criterion_code": null,
-            "map_confidence": null, "gem_bid_no": null}]}
+            "map_confidence": null, "item_start": false, "gem_bid_no": null}]}
 
 PAGES
 {{pages}}

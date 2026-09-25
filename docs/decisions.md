@@ -3,6 +3,27 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-019 NSDF golden run uses bid date 2026-05-07 (2026-09-25)
+GeM shows the original end date 14-04-2026; it was extended and bids were
+opened on 07-05-2026. The final closing date should be confirmed from GeM;
+07-05-2026 is used until then. Only affects the "awarded >= 12 months before"
+rule (Deloitte Credential-11, awarded Feb 2026, fails either way).
+
+## D-018 difflib instead of rapidfuzz (2026-09-25)
+Standard-library fuzzy matching is enough for 200-character quotes on
+one page, and removes a dependency.
+
+## D-017 OCR any page with a large image, not only empty pages (2026-09-25)
+Scanned certificates sit under a typed caption, so they have a text layer.
+Rule: OCR when text < 50 chars OR images cover >= 25% of the page
+(Deloitte: 253 pages instead of 54).
+
+## D-016 Phase 1 = command-line pipeline with a JSON run folder (2026-09-25)
+Get scoring right against the committee sheet before adding Postgres, the
+job queue and the API. Run-folder files mirror schema.md tables, so phase 2
+is a storage swap, not a redesign. Every LLM answer is cached on disk for
+audit and free re-runs.
+
 ## D-015 Out of scope for now (2026-09-25)
 Comparing judgements across bidders, certificate authenticity (forgery,
 UDIN), stamp/signature detection. Each bid is evaluated only on its own
