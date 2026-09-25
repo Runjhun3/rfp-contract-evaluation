@@ -2,6 +2,7 @@
 from decimal import Decimal
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,6 +11,10 @@ class Settings(BaseSettings):
 
     aws_region: str = "ap-south-1"
     s3_bucket: str = ""
+    # Local runs only; leave empty on EC2 so the instance's IAM role is used.
+    aws_access_key_id: str = Field("", repr=False)
+    aws_secret_access_key: str = Field("", repr=False)
+    aws_bearer_token_bedrock: str = Field("", repr=False)   # Bedrock API key
     claude_model: str = "global.anthropic.claude-sonnet-4-6"
 
     llm_mode: str = "bedrock"            # bedrock | replay (cache only, no AWS)
