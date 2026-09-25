@@ -8,7 +8,8 @@ import pypdfium2 as pdfium
 from starlette.responses import RedirectResponse
 from starlette.templating import Jinja2Templates
 
-templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+FRONTEND = Path(__file__).resolve().parents[3] / "frontend"   # repo-root/frontend
+templates = Jinja2Templates(directory=str(FRONTEND / "templates"))
 
 
 def format_marks(value) -> str:

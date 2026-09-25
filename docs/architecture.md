@@ -8,7 +8,8 @@ Read alongside coding-standards.md and schema.md. Root CLAUDE.md is the index.
   folder with the same shapes as schema.md; re-runs skip finished steps.
 - **Phase 2 (built):** Postgres (schema.md), the job queue + worker, and a
   server-rendered web UI (Starlette + Jinja2, one CSS file, one small JS file,
-  no build step). The pipeline still writes its step files under RUNS_DIR as a
+  no build step). Pages and assets live in `frontend/`; the routes that fill
+  them live in `backend/app/web/`. The pipeline still writes its step files under RUNS_DIR as a
   cache and audit trail; results are saved to Postgres when each bidder finishes.
 
 ## Components
@@ -50,6 +51,7 @@ reads the cover page and sets `bid_submission.cover_check`.
 
 ## Folder layout
 ```
+frontend/                   # server-rendered UI: templates/ (Jinja2 pages), static/ (app.css, app.js)
 backend/
   run.py                    # phase 1: `evaluate`, `compare`; phase 2 adds `api|worker|migrate`
   app/

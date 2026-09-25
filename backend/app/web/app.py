@@ -2,8 +2,6 @@
 
 Run: python run.py web   (uvicorn on 127.0.0.1:8000; put nginx with TLS in front)
 """
-from pathlib import Path
-
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -14,7 +12,7 @@ from starlette.staticfiles import StaticFiles
 from app.config import Settings
 from app.web import routes_auth, routes_bids, routes_projects, routes_results, routes_runs
 from app.web.auth import Forbidden, NotLoggedIn
-from app.web.common import go, templates
+from app.web.common import FRONTEND, go, templates
 
 SECURITY_HEADERS = {
     "Content-Security-Policy": "default-src 'self'; img-src 'self'; style-src 'self'; "
@@ -60,7 +58,7 @@ def create_app(settings: Settings) -> Starlette:
         raise RuntimeError("Set SESSION_SECRET in .env before starting the web app")
     routes = [*routes_auth.routes, *routes_projects.routes, *routes_bids.routes,
               *routes_runs.routes, *routes_results.routes,
-              Mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")),
+              Mount("/static", StaticFiles(directory=str(FRONTEND / "static")),
                     name="static")]
     middleware = [
         Middleware(SecurityHeaders, secure=settings.cookie_secure),
