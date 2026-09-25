@@ -1,0 +1,31 @@
+{
+  "tender": "GEM/2026/B/7401395",
+  "source": "14.05.2026 1000 Hrs Evaluation Annexure-NSDF.xlsx, sheet ANNEXURE III EVALUATION",
+  "bidders": {
+    "EY": {
+      "A.1": "16", "A.2": "10", "A.3": "10", "B.1": "8", "B.2": "21", "total_65": "65"
+    },
+    "GT Bharat": {
+      "A.1": "16", "A.2": "9.5", "A.3": "10", "B.1": "8", "B.2": "21", "total_65": "64.5",
+      "expect_flag": ["A.2"],
+      "note": "Committee did not record which A.2 project was rejected; 5 highest values would give 10."
+    },
+    "PwC": {
+      "A.1": "16", "A.2": "9.5", "A.3": "10", "B.1": "8", "B.2": "21", "total_65": "64.5"
+    },
+    "Deloitte": {
+      "A.1": "12", "A.2": "9", "A.3": "10", "B.1": "8", "B.2": "21", "total_65": "60",
+      "expect_excluded": {
+        "A.1": {
+          "Credential-7": "duration 6 months",
+          "Credential-8": "duration 6 months",
+          "Credential-9": "duration 4 months",
+          "Credential-10": "outside India",
+          "Credential-11": "awarded Feb 2026, less than 12 months before bid date"
+        }
+      }
+    }
+  },
+  "presentation_35_manual": { "Deloitte": "32", "EY": "23", "GT Bharat": "22", "PwC": "22" },
+  "final_100": { "Deloitte": "92", "EY": "88", "GT Bharat": "86.5", "PwC": "86.5" }
+}
