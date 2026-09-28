@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from starlette.routing import Route
 
+from app.criteria import missing_max_marks
 from app.db import q_projects
 from app.db.connection import transaction
 from app.db.repo_setup import LOCAL_USER_ID
@@ -53,8 +54,12 @@ async def save_criteria(request):
 
 async def approve_criteria(request):
     check_csrf(request)
+    tender_id = str(request.path_params["tender_id"])
     with _db(request) as cur:
-        q_projects.approve_prompt(cur, str(request.path_params["tender_id"]), LOCAL_USER_ID)
+        problem = missing_max_marks(q_projects.criteria(cur, tender_id))
+        if problem:
+            return fail(problem, 409)
+        q_projects.approve_prompt(cur, tender_id, LOCAL_USER_ID)
     return ok(None, "Criteria approved")
 
 

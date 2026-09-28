@@ -1,6 +1,7 @@
 """API: start an evaluation and watch its progress (the page polls GET /runs/{id})."""
 from starlette.routing import Route
 
+from app.criteria import missing_max_marks
 from app.db import q_bids, q_projects, q_runs
 from app.db.connection import transaction
 from app.db.repo_setup import LOCAL_USER_ID
@@ -29,6 +30,9 @@ async def start_run(request):
             return fail("Criteria must be approved first.", 409)
         if not ready:
             return fail("Upload at least one bid.", 409)
+        problem = missing_max_marks(q_projects.criteria(cur, tender_id))
+        if problem:
+            return fail(problem, 409)
         run_id = q_runs.start_run(cur, tender_id, prompt["prompt_id"], settings.claude_model,
                                   LOCAL_USER_ID, ready)
     return ok({"run_id": run_id}, "Evaluation started", 201)
