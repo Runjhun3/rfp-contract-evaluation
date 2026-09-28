@@ -15,3 +15,9 @@ def test_env_keys_reach_boto3_but_never_override_the_environment(monkeypatch):
     assert os.environ["AWS_SECRET_ACCESS_KEY"] == "from-shell"
     assert "AWS_BEARER_TOKEN_BEDROCK" not in os.environ   # blank -> IAM role on EC2
     assert "from-dotenv" not in repr(settings)
+
+
+def test_every_db_session_runs_in_ist():
+    from app.config import TIMEZONE, Settings
+    assert TIMEZONE == "Asia/Kolkata"
+    assert "options='-c TimeZone=Asia/Kolkata'" in Settings(_env_file=None).db_conninfo()

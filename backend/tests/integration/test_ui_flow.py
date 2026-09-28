@@ -59,7 +59,7 @@ def criterion(user):
                        "counted_items": min(len(rows), mx), "marks": str(total), "summary": "scripted"})
 
 
-def fake(system, user):
+def fake(system, user, images=()):
     if "label pages" in system: return label(user)
     if "Submitted under criterion" in user: return item(user)
     return criterion(user)
@@ -75,7 +75,7 @@ def extraction(user):
                      meaning="Presentation and interview", max_marks="35", scored_by="COMMITTEE"))
     rows.append(dict(code="E.1", stage="ELIGIBILITY", title="EMD", rfp_text="[clause]", meaning="EMD paid"))
     return json.dumps({"criteria": rows})
-def fake_all(system, user):
+def fake_all(system, user, images=()):
     return extraction(user) if "extract evaluation criteria" in system else fake(system, user)
 
 

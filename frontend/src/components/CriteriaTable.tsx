@@ -6,9 +6,12 @@ type Props = { rows: Criterion[]; onChange: (rows: Criterion[]) => void };
 // Scored per, Max items, Marks per item and Scored by are hidden for now (owner's
 // request, 2026-09-28); Marks stays visible. Set to true to show and edit them
 // again; saved values are kept either way, because hidden fields are sent back unchanged.
-const SHOW_SCORING_SETTINGS = false;
+const SHOW_SCORING_SETTINGS = true;
 
 // The editable criteria table. Values stay strings; the API parses them as Decimal.
+// A group heading (e.g. A, whose marks are the sum of A.1-A.3) shows its title and only
+// its marks are editable; it is not scored or counted in the total. Its sub-criteria are
+// indented under it.
 export default function CriteriaTable({ rows, onChange }: Props) {
   const edit = (i: number, key: keyof Criterion) =>
     (e: { target: { value: string } }) =>
@@ -27,13 +30,19 @@ export default function CriteriaTable({ rows, onChange }: Props) {
       <tbody>
         {rows.map((c, i) => (
           <tr key={c.criterion_id}>
-            <td>
+            <td className={c.parent_code ? "sub-code" : undefined}>
               <strong>{c.code}</strong><br />
               <span className="small muted">{titleCase(c.stage)}{c.rfp_page ? ` · p.${c.rfp_page}` : ""}</span>
             </td>
             <td>
-              <label className="sr-only" htmlFor={`m${i}`}>Meaning of {c.code}</label>
-              <textarea id={`m${i}`} rows={2} value={c.meaning ?? ""} onChange={edit(i, "meaning")} />
+              {c.is_group ? (
+                <p><strong>{c.title}</strong></p>
+              ) : (
+                <>
+                  <label className="sr-only" htmlFor={`m${i}`}>Meaning of {c.code}</label>
+                  <textarea id={`m${i}`} rows={2} value={c.meaning ?? ""} onChange={edit(i, "meaning")} />
+                </>
+              )}
               <details><summary className="small">RFP text</summary><p className="small">{c.rfp_text}</p></details>
             </td>
             {SHOW_SCORING_SETTINGS && (

@@ -41,13 +41,16 @@ def run(bid_pdf: Path, ctx: RunContext, criteria: list[Criterion], block: str,
     stage("LABELLING")
     pages = cached(run_dir / "pages_labelled.json", list[Page],
                    lambda: label_pages(pages, criteria, llm))
-    items = cached(run_dir / "items.json", list[Item], lambda: build_items(pages))
+    items = cached(run_dir / "items.json", list[Item],
+                   lambda: build_items(pages, {c.code: c.kind for c in criteria}))
     by_no = {p.pdf_page_no: p for p in pages}
-    results = _item_results(items, by_no, ctx, system_prompt(ctx, block), run_dir, llm, stage)
+    results = _item_results(items, by_no, ctx, system_prompt(ctx, block), bid_pdf, run_dir,
+                            llm, stage)
     stage("CHECKS", len(items), len(items))
     checks = cached(run_dir / "evidence_checks.json", list[EvidenceCheck],
                     lambda: [c for i in items if i.label in results
-                             for c in check_item(results[i.label], i, by_no, settings)])
+                             for c in check_item(results[i.label], i, by_no, settings,
+                                                 ctx.bid_due_date)])
     copies = cached(run_dir / "copy_groups.json", list[CopyGroup],
                     lambda: check_copies(items, results))
     stage("SCORING", len(items), len(items))
@@ -67,13 +70,14 @@ def _run_meta(bid_pdf: Path, ctx: RunContext, criteria: list[Criterion], block: 
 
 
 def _item_results(items: list[Item], pages: dict[int, Page], ctx: RunContext, system: str,
-                  run_dir: Path, llm: LlmClient, stage: Stage) -> dict[str, ItemResult]:
+                  bid_pdf: Path, run_dir: Path, llm: LlmClient,
+                  stage: Stage) -> dict[str, ItemResult]:
     results = {}
     for done, item in enumerate(items):
         stage("ITEMS", done, len(items))
-        results[item.label] = cached(run_dir / "items" / f"{safe_name(item.label)}.json",
-                                     ItemResult,
-                                     lambda item=item: evaluate_item(item, pages, ctx, system, llm))
+        results[item.label] = cached(
+            run_dir / "items" / f"{safe_name(item.label)}.json", ItemResult,
+            lambda item=item: evaluate_item(item, pages, ctx, system, llm, bid_pdf))
     return results
 
 

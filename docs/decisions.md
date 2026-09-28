@@ -3,6 +3,50 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-029 Python recomputes the LLM's numeric tests; one automatic re-check (2026-09-28)
+PwC's run judged ₹5,89,00,000 "not above 5 crore" (A.3) and put ₹5.02 Cr and
+₹5.89 Cr in the 2–5 crore band (A.2), although it had read both values
+correctly. No check covered the comparison itself. The item prompt now makes
+the LLM list every numeric/date test it applied, in the RFP's own thresholds;
+Python recomputes each (it knows no rule, only how to compare numbers and
+dates). On any difference the item goes back to the LLM once with the finding;
+the second answer stands, the first is kept and the item is flagged RECHECKED.
+A test still wrong after that is flagged CONDITION_MISMATCH. Python never
+changes marks itself.
+
+## D-028 Extraction: no forms, required documents, general conditions (2026-09-28)
+The NSDF extraction returned three blank formats (project sheet, CV format, MII
+form) as criteria, missed the Annexure II documents the committee checked, and
+dropped the notes under the marks table (lead consultant in India; extra CVs
+score 0). Forms are now excluded, mandatory documents become eligibility rows,
+and multi-criterion notes are returned once as general conditions at the top of
+the rule text. The RFP is sent in one call up to 100 pages (as this doc already
+said), because a 40-page second chunk saw the forms without the table they
+belong to and returned them as duplicate eligibility rows.
+
+## D-027 The bidder's section maps items; judgement calls go to the committee (2026-09-28)
+The EY run scored 43 against the committee's 65. Projects were mapped to a
+criterion by their own content, so a project the bidder claimed under A.1 went
+to A.2 or A.3. Now a claim summary for one criterion (mapped by meaning) owns
+every item of the same kind after it; the page's own label is only a fallback.
+CV tables have a text layer out of reading order (a "Total experience" line
+printed under one table sits under another in the text), so CV pages are also
+sent as images, the LLM lists the employment rows, and Python re-adds them.
+A CV scores each sub-criterion separately; an unmet part no longer zeroes the
+whole CV. The system prompt no longer names a sector: interpretation
+questions (client category, "completed" for extended or phased work,
+relevance, "preference" wording) are marked eligible with confidence < 0.8 for
+the committee; only a missing document or a clearly failed number/date rejects.
+
+## D-026 Group headings are not criteria (2026-09-28)
+RFP marking tables nest: a heading such as "A Consultant Experience (36)" is the
+sum of A.1-A.3. Counting headings and sub-criteria together doubled those marks
+(an NSDF total of 165 instead of 100). A row that another row names in
+`parent_code` is a group: it shows its title with editable marks, and is left out of the total, the
+rule text and the evaluation run. If a group's marks differ from the sum of its
+direct sub-criteria, the criteria page warns; neither number is corrected.
+Groups are found from the LLM's `parent` link, never by parsing codes.
+
 ## D-025 React UI over a JSON API (2026-09-25)
 Supersedes the UI part of D-022. The screens are a React single-page app
 (React 19 + TypeScript + React Router, built with Vite) in `frontend/`. The

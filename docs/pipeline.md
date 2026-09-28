@@ -17,7 +17,7 @@ Two rules run through every step:
 | Step | Job | What happens |
 | ---- | --- | ------------ |
 | 1 | INGEST_FILE | Store the RFP in S3 (`tenders/<id>/rfp/<sha256>.pdf`), extract text per page (Textract for scanned pages). |
-| 2 | EXTRACT_CRITERIA | Send the whole RFP (≤ 100 pages; larger → 40-page chunks) with `criteria_extraction_v1.md`. The LLM finds eligibility and evaluation criteria **by meaning**, wherever they sit and whatever they are called. Writes `criterion` rows: verbatim `rfp_text`, a one-line plain `meaning`, `max_marks`, `max_items`. |
+| 2 | EXTRACT_CRITERIA | Send the whole RFP (≤ 100 pages; larger → 40-page chunks) with `criteria_extraction_v2.md`. The LLM finds eligibility and evaluation criteria **by meaning**, wherever they sit and whatever they are called. Writes `criterion` rows: verbatim `rfp_text`, a one-line plain `meaning`, `max_marks`, `max_items`, `parent_code`. Blank forms (CV formats, declaration forms) are not criteria; each mandatory document in a "documents to be submitted" list is an eligibility row (always coded E.1, E.2 …); presentation/interview criteria get stage PRESENTATION. Notes that apply to several criteria come back once as general conditions and head the draft rule text. A re-extraction deletes criteria the RFP no longer yields, unless a run or committee mark refers to them. A row that another row names as its parent is a **group heading** (e.g. A = A.1 + A.2 + A.3): it is not scored, not added to the total and not put in the rule text (`app/criteria.py`). |
 | 3 | — (API) | Render the criteria block from `criterion` rows into `evaluation_prompt` v1 (DRAFT). |
 | 4 | — (API) | Human compares the block with the RFP, edits, approves → PROMPT_APPROVED. |
 
@@ -26,8 +26,8 @@ Two rules run through every step:
 | ---- | --- | ------------ |
 | 1 | INGEST_FILE | sha256 check (re-upload = no-op). Store in S3. pypdfium2 reads the text layer of every page → `page` rows. `pages_done` updated as it goes, so the job can resume. |
 | 2 | OCR_PAGES | Pages with < 50 chars of text **or an image covering ≥ 25% of the page** are bundled into one PDF under `tmp/<file_id>/` and sent to Textract `StartDocumentTextDetection` (async). Text + confidence go back into `page`. tmp object deleted. |
-| 3 | LABEL_PAGES | Batches of ~20 pages (first 1,500 chars each) + the tender's criterion list (`code — meaning`) with `page_label_v1.md`. Sets `page_type`, and for summary/header/CV pages the `criterion_code` whose **meaning** matches, with `map_confidence`. Also checks the cover page for the GeM bid no. |
-| 4 | BUILD_PROJECTS | Deterministic Python. Each `PROJECT_HEADER` page starts an item that runs until the next header, CV or section break. **Each item belongs to exactly one criterion.** If a bidder repeats the same project under A.1, A.2 and A.3, that is three items (three copies). Items are cross-checked against the `CLAIM_SUMMARY` page (count, page ranges); differences are flagged. |
+| 3 | LABEL_PAGES | Batches of ~20 pages (first 1,500 chars each) + the tender's criterion list (`code — meaning`) with `page_label_v2.md`. Sets `page_type`; for a claim summary the ONE `criterion_code` whose **meaning** it claims for (null if it covers several); for header/CV pages the best match by meaning, with `map_confidence`; and the item's `title`. Section-title pages are `BLANK`. Also checks the cover page for the GeM bid no. |
+| 4 | BUILD_PROJECTS | Deterministic Python. Each `PROJECT_HEADER` page starts an item that runs until the next header, CV or section break. **Each item belongs to exactly one criterion: the bidder's claim decides.** A claim summary for one criterion opens a section; every item of the same kind (project/CV) after it takes that criterion until the next claim summary or marketing page. Only items outside a section use their own page's label. If a bidder repeats the same project under A.1, A.2 and A.3, that is three items (three copies). Items are cross-checked against the `CLAIM_SUMMARY` page (count, page ranges); differences are flagged. |
 
 Why the image rule: bidders put a typed caption ("Documentary Evidence 5:
 Letter of Completion") above a scanned certificate. A text-length rule alone
@@ -39,11 +39,11 @@ Start ingestion as soon as a bid is uploaded, not when the run starts.
 ## 3. Evaluation run
 | Step | Job | What happens |
 | ---- | --- | ------------ |
-| 1 | EVAL_ITEM (one per item) | `system_v1` + criteria block (cached) + `item_eval_v1` + only this item's pages, each prefixed `[PDF p. N]`. Returns facts, **each with page + exact quote**, `relies_on`, eligible, marks, reason, confidence, and any suspicious text. Writes item facts + draft `claim`. |
+| 1 | EVAL_ITEM (one per item) | `system_v2` + criteria block (cached) + `item_eval_v3` + only this item's pages, each prefixed `[PDF p. N]`. For a CV the page images are sent too (≤ 20), because CV tables often have a text layer out of reading order. Returns facts, **each with page + exact quote**, `relies_on`, eligible, marks, reason, confidence, and any suspicious text. It also lists every numeric/date test it applied (`conditions`: fact, test, threshold, met); Python recomputes each one (`condition_check.py`) and, if any result differs, sends the item back ONCE with `item_recheck_v1` stating what differs. The second answer stands; the first is kept on record (`recheck`) and shown to the committee. A CV also returns its employment rows, the experience years used and one score per sub-criterion (marks = their sum). Judgement calls (client category, completion of extended/phased work, relevance) are marked eligible with confidence < 0.8 for the committee; only hard fails are rejected. Writes item facts + draft `claim`. |
 | 2 | (same job) | `evidence_check.py` — see below. Writes `evidence_check` rows. |
 | 3 | COPY_CHECK (one per bidder, after all EVAL_ITEM) | `copy_check.py` groups copies of the same project (same client + similar title) and compares client, value and dates. Any difference → `COPY_MISMATCH` on every copy. |
 | 4 | EVAL_CRITERION (one per bidder × criterion) | `criterion_eval_v1` + item results JSON only (no pages). Applies max N / best N → counted flags + total. Updates `claim.counted`, writes `criterion_score.llm_marks`. |
-| 5 | (same job) | `arithmetic_check.py`: `checked_marks` = sum of counted claim marks, capped at `max_marks`; counted ≤ `max_items`; each item mark allowed by the prompt; duration recomputed from verified dates. Sets `arithmetic_ok`. |
+| 5 | (same job) | `arithmetic_check.py`: `checked_marks` = sum of counted claim marks, capped at `max_marks`; counted ≤ `max_items`; each item mark allowed by the prompt; a CV's marks equal the sum of its sub-scores; duration recomputed from verified dates. Sets `arithmetic_ok`. |
 | 6 | (same job) | `flags.py` sets `needs_review` + `review_reasons`. |
 
 ### Evidence check (`evaluate/evidence_check.py`)
@@ -55,7 +55,13 @@ For every item the LLM marks eligible:
 3. The quote actually states the value used: amounts are parsed to rupees
    (₹, Rs., INR, crore/Cr, lakh/lac, Indian digit grouping) and must match the
    fact within 1%; dates are parsed day-first and must match exactly.
-4. Any failure → `EVIDENCE_UNVERIFIED` flag. Python does not change the LLM's
+4. For a CV, every employment-row quote is on its page, and `cv_check.py`
+   re-adds the rows (overlaps once, "present" = bid submission date). A total
+   a year or more away from the years the LLM used fails the check.
+5. Every test in `conditions` is recomputed from the fact values
+   (duration from the verified dates, CV years from the employment rows); a
+   test that cannot be recomputed is recorded as such, never guessed.
+6. Any failure → `EVIDENCE_UNVERIFIED` flag (a wrong test → `CONDITION_MISMATCH`). Python does not change the LLM's
    decision; the committee sees exactly which quote failed and why.
 
 ### Review flags
@@ -64,6 +70,8 @@ For every item the LLM marks eligible:
 | ARITHMETIC | `llm_marks` ≠ `checked_marks`, or a cap is exceeded |
 | EVIDENCE_UNVERIFIED | a counted item lacks a certificate page, or a quote is not on its page, or does not state the value/date used |
 | COPY_MISMATCH | copies of the same project disagree on client, value or dates |
+| CONDITION_MISMATCH | a numeric/date test the LLM applied still gives a different result when Python recomputes it, after the one re-check |
+| RECHECKED | Python recomputed a test differently, so the item was re-evaluated once; the first and second answers are both on record |
 | MAPPING_UNSURE | an item's criterion mapping has confidence < 0.80, or disagrees with the bidder's summary page |
 | LOW_CONFIDENCE | any claim confidence < 0.80 |
 | OCR_EVIDENCE | a cited evidence page came from Textract/vision |

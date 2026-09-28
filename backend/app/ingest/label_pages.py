@@ -28,6 +28,7 @@ def label_pages(pages: list[Page], criteria: list[Criterion], llm: LlmClient) ->
             page.criterion_code = label.criterion_code if label.criterion_code in codes else None
             page.map_confidence = label.map_confidence
             page.item_start = label.item_start
+            page.title = label.title
     return pages
 
 

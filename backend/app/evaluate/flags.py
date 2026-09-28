@@ -1,5 +1,7 @@
 """Decide needs_review and why, for one criterion. Codes: docs/pipeline.md."""
 from app.config import Settings
+from app.evaluate.condition_check import PREFIX
+from app.evaluate.evidence_check import CV_CHECKED
 from app.schemas.llm import CriterionResult, ItemResult
 from app.schemas.records import ArithmeticCheck, CopyGroup, EvidenceCheck, Item, Page
 
@@ -13,8 +15,12 @@ def review_reasons(result: CriterionResult, arith: ArithmeticCheck,
     reasons = set()
     if not arith.ok:
         reasons.add("ARITHMETIC")
-    if any(c.label in counted and not c.passed() for c in checks):
+    if any(c.label in counted and not c.passed() for c in checks
+           if not c.fact.startswith(PREFIX)):
         reasons.add("EVIDENCE_UNVERIFIED")
+    if any(c.label in judged and c.value_matches is False for c in checks
+           if c.fact.startswith(PREFIX)):
+        reasons.add("CONDITION_MISMATCH")
     mismatched = {label for g in copies if g.mismatches for label in g.labels}
     if counted & mismatched:
         reasons.add("COPY_MISMATCH")
@@ -33,9 +39,12 @@ def _item_reasons(result: ItemResult, counted: bool, pages: dict[int, Page],
         reasons.add("LOW_CONFIDENCE")
     if result.suspicious_text:
         reasons.add("SUSPICIOUS_TEXT")
+    if result.recheck:
+        reasons.add("RECHECKED")
     facts = result.all_facts()
     if result.eligible and any(facts.get(n) is None for n in result.relies_on
-                               if n not in ("duration", "duration_months")):
+                               if n not in ("duration", "duration_months")
+                               and not (result.cv and n in CV_CHECKED)):
         reasons.add("MISSING_FACT")
     cited = result.evidence.work_order + result.evidence.completion_or_ca
     if counted and any(pages.get(n) and pages[n].ocr_text for n in cited):

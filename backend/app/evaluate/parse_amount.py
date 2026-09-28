@@ -25,7 +25,11 @@ def parse_amounts(quote: str) -> list[Decimal]:
 
 
 def amount_matches(fact_value: str, quote: str, tolerance: Decimal) -> tuple[bool, str]:
-    target = Decimal(str(fact_value).replace(",", ""))
+    """Raises ValueError when the LLM's value is not a plain rupee number."""
+    try:
+        target = Decimal(str(fact_value).replace(",", ""))
+    except InvalidOperation as err:
+        raise ValueError(f"not a rupee amount: {fact_value!r}") from err
     amounts = parse_amounts(quote)
     for amount in amounts:
         if target and abs(amount - target) <= abs(target) * tolerance:

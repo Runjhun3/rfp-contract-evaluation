@@ -6,17 +6,18 @@ file lists what exists and how the pieces fit together.
 ## Files in backend/prompts/
 | File | Used by | Input | Output |
 | ---- | ------- | ----- | ------ |
-| `system_v1.md` | every evaluation call | — | role + general rules |
-| `criteria_extraction_v1.md` | EXTRACT_CRITERIA | RFP Annexure II/III pages | criterion list JSON |
-| `page_label_v1.md` | LABEL_PAGES | ~20 page snippets | page_type per page |
-| `item_eval_v1.md` | EVAL_ITEM | one item's pages (one criterion) | facts with quotes + judgement |
+| `system_v2.md` | every evaluation call | — | role + general rules |
+| `criteria_extraction_v2.md` | EXTRACT_CRITERIA | RFP Annexure II/III pages | criterion list JSON (v2: group headings + `parent` on every sub-criterion) |
+| `page_label_v2.md` | LABEL_PAGES | ~20 page snippets | page_type per page |
+| `item_eval_v3.md` | EVAL_ITEM | one item's pages (one criterion) | facts with quotes + judgement |
+| `item_recheck_v1.md` | EVAL_ITEM, only when Python recomputes a test differently | the item prompt + previous answer + findings | the full item JSON again |
 | `criterion_eval_v1.md` | EVAL_CRITERION | item results JSON | counted items + marks |
 
 ## How an item call is assembled
 ```
-system:  system_v1.md                           ┐ identical for every item call
+system:  system_v2.md                           ┐ identical for every item call
          + evaluation_prompt.criteria_block     ┘ in a run → cache point here
-user:    item_eval_v1.md (filled: bidder, label, kind, code)
+user:    item_eval_v3.md (+ page images for a CV) (filled: bidder, label, kind, code)
          + pages: "[PDF p. 285]\n<text>\n\n[PDF p. 286]\n<text> ..."
 ```
 The criteria block is tender data (DB, human-approved). An NSDF example is

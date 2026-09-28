@@ -10,7 +10,8 @@ from dateutil import parser
 MONTHS = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?"
 _FULL = [
     re.compile(r"\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b"),
-    re.compile(rf"\b\d{{1,2}}(?:st|nd|rd|th|[\"”'’`])?\s*(?:of\s+)?{MONTHS},?\s*\d{{4}}\b", re.I),
+    re.compile(rf"\b\d{{1,2}}(?:st|nd|rd|th|[\"”'’`])?[\s./-]*(?:of\s+)?{MONTHS}[,\s./-]*\d{{4}}\b",
+               re.I),
     re.compile(rf"\b{MONTHS}\s+\d{{1,2}}(?:st|nd|rd|th)?,?\s*\d{{4}}\b", re.I),
     re.compile(r"\b\d{4}-\d{2}-\d{2}\b"),
 ]

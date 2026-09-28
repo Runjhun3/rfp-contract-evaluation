@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from app.config import Settings
@@ -8,6 +9,7 @@ from app.schemas.llm import CriterionItem, CriterionResult, Evidence, Fact, Item
 from app.schemas.records import Criterion, Item, Page
 
 SETTINGS = Settings(_env_file=None)
+AS_OF = date(2026, 5, 7)
 A2 = Criterion(code="A.2", title="t", meaning="m", kind="PROJECT", max_marks=Decimal(10),
                max_items=2, allowed_item_marks=[Decimal(1), Decimal("1.5"), Decimal(2)])
 
@@ -33,22 +35,23 @@ PAGES = {10: Page(pdf_page_no=10, text="Project header"),
 
 
 def test_evidence_passes():
-    checks = check_item(_result(), _item(), PAGES, SETTINGS)
+    checks = check_item(_result(), _item(), PAGES, SETTINGS, AS_OF)
     assert all(c.passed() for c in checks), checks
 
 
 def test_evidence_wrong_value_fails():
-    checks = check_item(_result(value="68000000"), _item(), PAGES, SETTINGS)
+    checks = check_item(_result(value="68000000"), _item(), PAGES, SETTINGS, AS_OF)
     assert any(c.fact == "value_inr" and c.value_matches is False for c in checks)
 
 
 def test_evidence_quote_not_on_page_fails():
-    checks = check_item(_result(quote="Contract value INR 12 Crore"), _item(), PAGES, SETTINGS)
+    checks = check_item(_result(quote="Contract value INR 12 Crore"), _item(), PAGES, SETTINGS,
+                        AS_OF)
     assert any(c.fact == "value_inr" and not c.quote_found for c in checks)
 
 
 def test_evidence_page_outside_item_fails():
-    checks = check_item(_result(page=40), _item(), PAGES, SETTINGS)
+    checks = check_item(_result(page=40), _item(), PAGES, SETTINGS, AS_OF)
     assert any("outside" in c.note for c in checks)
 
 
@@ -80,3 +83,9 @@ def test_arithmetic_wrong_total_and_cap():
     wrong = _criterion_result([("a", "2", True), ("b", "2", True), ("c", "2", True)], "6")
     issues = check_criterion(A2, wrong, items).issues
     assert any("maximum is 2" in i for i in issues)
+
+
+def test_evidence_value_that_is_not_a_rupee_number_fails_instead_of_crashing():
+    checks = check_item(_result(value="Approx USD 4 million"), _item(), PAGES, SETTINGS, AS_OF)
+    bad = [c for c in checks if c.fact == "value_inr"][0]
+    assert not bad.passed() and "unreadable value" in bad.parsed_value

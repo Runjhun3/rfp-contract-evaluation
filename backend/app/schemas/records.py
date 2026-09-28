@@ -37,6 +37,7 @@ class Page(BaseModel):
     criterion_code: str | None = None
     map_confidence: float | None = None
     item_start: bool = False
+    title: str | None = None
 
     def full_text(self) -> str:
         if not self.ocr_text:

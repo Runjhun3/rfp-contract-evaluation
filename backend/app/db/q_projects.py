@@ -54,11 +54,23 @@ def latest_rfp(cur, tender_id: str) -> dict | None:
 
 def criteria(cur, tender_id: str) -> list[dict]:
     return all_rows(cur, """
-        select criterion_id::text, code, stage, kind, title, rfp_text, meaning,
+        select criterion_id::text, code, parent_code, stage, kind, title, rfp_text, meaning,
                trim_scale(max_marks) as max_marks, max_items, scored_by, rfp_page,
                array_to_string(array(select trim_scale(m) from unnest(allowed_item_marks) m),
                                ', ') as allowed
         from criterion where tender_id = %s order by stage desc, code""", (tender_id,))
+
+
+def drop_stale_criteria(cur, tender_id: str, codes: list[str]) -> None:
+    """After a re-extraction: remove criteria the RFP no longer yields. A row that a
+    run, bid item or committee mark refers to is kept (history is never deleted)."""
+    cur.execute("""delete from criterion c where c.tender_id = %s and not (c.code = any(%s))
+                     and not exists (select 1 from bid_item i where i.criterion_id = c.criterion_id)
+                     and not exists (select 1 from criterion_score s
+                                     where s.criterion_id = c.criterion_id)
+                     and not exists (select 1 from manual_score m
+                                     where m.criterion_id = c.criterion_id)""",
+                (tender_id, codes))
 
 
 def update_criterion(cur, criterion_id: str, fields: dict) -> None:

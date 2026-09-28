@@ -1,6 +1,7 @@
 """Python checks every number the LLM returned for a criterion. Never corrects.
 
-checked_marks = sum of counted item marks, capped at max_marks.
+checked_marks = sum of counted item marks, capped at max_marks. A CV's marks must
+equal the sum of its sub-criterion scores.
 """
 from decimal import Decimal
 
@@ -37,6 +38,11 @@ def _item_issues(criterion: Criterion, result: CriterionResult,
             issues.append(f"{row.label}: counted but item was not eligible")
         elif row.marks != source.marks:
             issues.append(f"{row.label}: {row.marks} marks, item said {source.marks}")
+        if source is not None and source.cv and source.cv.sub_scores:
+            parts = sum((s.marks for s in source.cv.sub_scores), Decimal(0))
+            if parts != source.marks:
+                issues.append(f"{row.label}: sub-criteria add up to {parts}, "
+                              f"item said {source.marks}")
         if criterion.allowed_item_marks and row.marks not in criterion.allowed_item_marks:
             issues.append(f"{row.label}: {row.marks} is not an allowed mark "
                           f"{[str(m) for m in criterion.allowed_item_marks]}")

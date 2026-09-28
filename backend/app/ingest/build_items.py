@@ -4,6 +4,11 @@ An item starts on a page the labeller marked item_start (a project header or the
 first page of a CV) and runs until the next item start or a section-level page
 (claim summary, marketing). Each item belongs to exactly one criterion; a project
 repeated under A.1, A.2 and A.3 becomes three items (copies).
+
+Which criterion: the bidder's claim decides. A claim summary for ONE criterion
+(itself mapped by meaning) opens a section, and every item of the same kind that
+follows belongs to it until the next claim summary or marketing page. Only an
+item outside such a section falls back to its own page's meaning-based label.
 """
 import unicodedata
 
@@ -13,31 +18,36 @@ START_TYPES = {"PROJECT_HEADER", "CV"}
 STOP_TYPES = {"CLAIM_SUMMARY", "MARKETING"}
 
 
-def build_items(pages: list[Page]) -> list[Item]:
+def build_items(pages: list[Page], kinds: dict[str, str]) -> list[Item]:
+    """kinds: criterion code -> "PROJECT" | "CV", for the criteria being scored."""
     items: list[Item] = []
     current: Item | None = None
+    section: Page | None = None
     for page in pages:
         if page.item_start and page.page_type in START_TYPES:
             _close(items, current)
-            current = _start(page)
+            current = _start(page, section, kinds)
         elif page.page_type in STOP_TYPES:
             _close(items, current)
             current = None
+            section = page if page.page_type == "CLAIM_SUMMARY" and page.criterion_code else None
         elif current is not None:
             current.to_page = page.pdf_page_no
     _close(items, current)
     return items
 
 
-def _start(page: Page) -> Item | None:
-    if page.criterion_code is None:
-        return None          # a project the bidder did not claim for any criterion
+def _start(page: Page, section: Page | None, kinds: dict[str, str]) -> Item | None:
+    kind = "CV" if page.page_type == "CV" else "PROJECT"
+    source = section if section and kinds.get(section.criterion_code) == kind else page
+    if source.criterion_code not in kinds:
+        return None          # a project the bidder did not claim for any scored criterion
     return Item(
-        label=f"{page.criterion_code} p.{page.pdf_page_no}",
-        title=_title(page),
-        kind="CV" if page.page_type == "CV" else "PROJECT",
-        criterion_code=page.criterion_code,
-        map_confidence=page.map_confidence or 0.0,
+        label=f"{source.criterion_code} p.{page.pdf_page_no}",
+        title=page.title or _title(page),
+        kind=kind,
+        criterion_code=source.criterion_code,
+        map_confidence=source.map_confidence or 0.0,
         from_page=page.pdf_page_no,
         to_page=page.pdf_page_no,
     )

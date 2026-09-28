@@ -32,8 +32,14 @@ def main() -> None:
                     proxy_headers=True)
     elif args.command == "worker":
         import logging
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from app.config import TIMEZONE
         from app.jobs.worker import forever
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+        logging.Formatter.converter = staticmethod(   # IST log times, whatever the server zone
+            lambda secs: datetime.fromtimestamp(secs, ZoneInfo(TIMEZONE)).timetuple())
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s IST %(name)s %(message)s")
         forever(get_settings())
     elif args.command == "save-run":
         from app.db.save_run import save_run

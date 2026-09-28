@@ -3,9 +3,17 @@
 1. An eligible PROJECT cites a work-order page and a completion/CA page inside the item.
 2. Every fact in relies_on has a quote that is on its cited page (inside the item).
 3. Amount and date quotes actually state the value used.
+4. For a CV, every employment row quote is on its page, and the rows add up to the
+   years of experience used (cv_check.py).
+5. Every numeric/date test the LLM applied gives the same result when Python
+   recomputes it (condition_check.py); a re-check, if one happened, is recorded.
 Failures are recorded, never corrected.
 """
+from datetime import date
+
 from app.config import Settings
+from app.evaluate.condition_check import condition_checks
+from app.evaluate.cv_check import experience_check
 from app.evaluate.parse_amount import amount_matches
 from app.evaluate.parse_date import date_matches
 from app.evaluate.quote_match import quote_score
@@ -15,18 +23,41 @@ from app.schemas.records import EvidenceCheck, Item, Page
 AMOUNT_FACTS = {"value_inr"}
 DATE_FACTS = {"awarded_on", "start_on", "end_on"}
 ALIASES = {"duration": ["start_on", "end_on"], "duration_months": ["start_on", "end_on"]}
+CV_CHECKED = {"employment", "experience_years"}   # verified by the row and total checks below
 
 
 def check_item(result: ItemResult, item: Item, pages: dict[int, Page],
-               settings: Settings) -> list[EvidenceCheck]:
+               settings: Settings, as_of: date) -> list[EvidenceCheck]:
+    """as_of: the bid submission date, where a job that is still "present" ends."""
     checks = []
     if result.eligible and item.kind == "PROJECT":
         checks.append(_presence("work_order", result.evidence.work_order, item))
         checks.append(_presence("completion_or_ca", result.evidence.completion_or_ca, item))
     facts = result.all_facts()
     for name in _expand(result.relies_on):
+        if result.cv and name in CV_CHECKED:
+            continue
         checks.append(_check_fact(item, name, facts.get(name), pages, settings))
+    if result.cv:
+        for n, job in enumerate(result.cv.employment, start=1):
+            checks.append(_check_fact(item, f"employment_row_{n}",
+                                      Fact(page=job.page, quote=job.quote), pages, settings))
+        total = experience_check(result, item, as_of)
+        if total:
+            checks.append(total)
+    checks += condition_checks(result, as_of)
+    if result.recheck:
+        checks.append(_recheck_note(result))
     return checks
+
+
+def _recheck_note(result: ItemResult) -> EvidenceCheck:
+    first = result.recheck
+    before = f"{'eligible' if first.first_eligible else 'not eligible'}, {first.first_marks} marks"
+    after = f"{'eligible' if result.eligible else 'not eligible'}, {result.marks} marks"
+    return EvidenceCheck(label=result.label, fact="re-checked", quote_found=True,
+                         note=f"First answer: {before}. Python found: "
+                              f"{'; '.join(first.findings)}. After re-check: {after}.")
 
 
 def _expand(names: list[str]) -> list[str]:

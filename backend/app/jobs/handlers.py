@@ -22,10 +22,12 @@ def extract_criteria(settings: Settings, llm: LlmClient, job: dict) -> None:
     pages = ocr_pages(pdf, read_pages(pdf), settings, f"rfp-{job['ref_id']}")
     found = extract(pages, llm)
     with transaction(settings) as cur:
-        for c in found:
+        for c in found.criteria:
             _upsert_criterion(cur, doc["tender_id"], c)
+        q_projects.drop_stale_criteria(cur, doc["tender_id"], [c.code for c in found.criteria])
         q_projects.save_draft_block(cur, doc["tender_id"],
-                                    build_block(q_projects.criteria(cur, doc["tender_id"])))
+                                    build_block(q_projects.criteria(cur, doc["tender_id"]),
+                                                found.general_conditions))
         q_projects.set_status(cur, doc["tender_id"], "CRITERIA_READY")
 
 
@@ -34,7 +36,8 @@ def _upsert_criterion(cur, tender_id: str, c) -> None:
     cur.execute("""insert into criterion (tender_id, code, parent_code, stage, kind, title, rfp_text,
                      meaning, max_marks, max_items, allowed_item_marks, scored_by, rfp_page)
                    values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::numeric[], %s, %s)
-                   on conflict (tender_id, code) do update set stage = excluded.stage,
+                   on conflict (tender_id, code) do update set parent_code = excluded.parent_code,
+                     stage = excluded.stage,
                      kind = excluded.kind, title = excluded.title, rfp_text = excluded.rfp_text,
                      meaning = excluded.meaning, max_marks = excluded.max_marks,
                      max_items = excluded.max_items, allowed_item_marks = excluded.allowed_item_marks,
@@ -77,8 +80,12 @@ def _load(cur, run_id: str, submission_id: str):
         where r.run_id = %s""", (submission_id, run_id))
     rows = all_rows(cur, """select criterion_id::text, code, title, meaning, kind, rfp_text,
                                    max_marks, max_items, allowed_item_marks
-                            from criterion where tender_id = %s and stage = 'TECHNICAL'
-                              and scored_by = 'LLM' and kind is not null order by code""",
+                            from criterion c where tender_id = %s and stage = 'TECHNICAL'
+                              and scored_by = 'LLM' and kind is not null
+                              and not exists (select 1 from criterion sub       -- group heading
+                                              where sub.tender_id = c.tender_id
+                                                and sub.parent_code = c.code)
+                            order by code""",
                     (head["tender_id"],))
     file = one_row(cur, """select file_id::text, s3_key from submission_file where submission_id = %s
                            order by uploaded_at desc limit 1""", (submission_id,))

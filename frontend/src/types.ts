@@ -18,12 +18,14 @@ export interface Rfp { doc_id: string; file_name: string; page_count: number; up
 export interface RfpPage extends Head { rfp: Rfp | null }
 
 export interface Criterion {
-  criterion_id: string; code: string; stage: string; kind: string | null; title: string;
+  criterion_id: string; code: string; parent_code: string | null; is_group: boolean; stage: string; kind: string | null; title: string;
   rfp_text: string; meaning: string; max_marks: Marks | null; max_items: number | null;
   scored_by: string; rfp_page: number | null; allowed: string;
 }
 export interface Prompt { prompt_id: string; version: number; criteria_block: string; status: string }
-export interface CriteriaPage extends Head { criteria: Criterion[]; prompt: Prompt | null; technical_total: Marks }
+export interface CriteriaPage extends Head {
+  criteria: Criterion[]; prompt: Prompt | null; technical_total: Marks; group_warnings: string[];
+}
 
 export interface Firm { bidder_id: string; legal_name: string; short_name: string }
 export interface Submission {

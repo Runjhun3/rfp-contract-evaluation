@@ -15,11 +15,48 @@ class Evidence(BaseModel):
     completion_or_ca: list[int] = Field(default_factory=list)
 
 
+class Job(BaseModel):
+    """One row of a CV's employment record."""
+    organisation: str = ""
+    role: str = ""
+    start: str | None = None      # "YYYY-MM"
+    end: str | None = None        # "YYYY-MM" or "present"
+    page: int | None = None
+    quote: str | None = None
+
+
+class SubScore(BaseModel):
+    """One sub-criterion of a CV criterion, named as the RFP names it."""
+    name: str
+    marks: Decimal
+    reason: str = ""
+
+
 class CvFacts(BaseModel):
     degree: Fact | None = None
-    years_experience: Fact | None = None
-    sports_or_govt_experience: Fact | None = None
-    sub_marks: dict[str, Decimal] = Field(default_factory=dict)
+    stated_experience: Fact | None = None     # the total the CV itself states, if any
+    employment: list[Job] = Field(default_factory=list)
+    experience_years: Decimal | None = None   # total the LLM used for its decision
+    facts: dict[str, Fact | None] = Field(default_factory=dict)   # other facts it relied on
+    sub_scores: list[SubScore] = Field(default_factory=list)
+
+
+class Condition(BaseModel):
+    """One numeric or date test the LLM applied, in the RFP's own threshold, e.g.
+    value_inr > 50000000. Python recomputes it (evaluate/condition_check.py)."""
+    fact: str               # a fact name, "duration_months" or "experience_years"
+    test: str               # > >= < <= =
+    threshold: str          # plain number in the fact's unit, or YYYY-MM-DD
+    met: bool
+
+
+class Recheck(BaseModel):
+    """Set by Python, never by the LLM: the first answer, when a recomputed test
+    disagreed and the item was sent back once."""
+    first_eligible: bool
+    first_marks: Decimal
+    first_reason: str
+    findings: list[str]
 
 
 class Suspicious(BaseModel):
@@ -34,18 +71,20 @@ class ItemResult(BaseModel):
     evidence: Evidence = Field(default_factory=Evidence)
     cv: CvFacts | None = None
     relies_on: list[str] = Field(default_factory=list)
+    conditions: list[Condition] = Field(default_factory=list)
     eligible: bool
     marks: Decimal
     reason: str
     confidence: float
     suspicious_text: list[Suspicious] = Field(default_factory=list)
+    recheck: Recheck | None = None
 
     def all_facts(self) -> dict[str, Fact | None]:
         facts = dict(self.facts)
         if self.cv:
+            facts.update(self.cv.facts)
             facts["degree"] = self.cv.degree
-            facts["years_experience"] = self.cv.years_experience
-            facts["sports_or_govt_experience"] = self.cv.sports_or_govt_experience
+            facts["stated_experience"] = self.cv.stated_experience
         return facts
 
 
@@ -72,6 +111,7 @@ class PageLabel(BaseModel):
     criterion_code: str | None = None
     map_confidence: float | None = None
     item_start: bool = False
+    title: str | None = None      # project name, or person + position, on item_start pages
     gem_bid_no: str | None = None
 
 
