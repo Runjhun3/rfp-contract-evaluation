@@ -3,6 +3,11 @@ import type { Criterion } from "../types";
 
 type Props = { rows: Criterion[]; onChange: (rows: Criterion[]) => void };
 
+// Scored per, Max items, Marks per item and Scored by are hidden for now (owner's
+// request, 2026-09-28); Marks stays visible. Set to true to show and edit them
+// again; saved values are kept either way, because hidden fields are sent back unchanged.
+const SHOW_SCORING_SETTINGS = false;
+
 // The editable criteria table. Values stay strings; the API parses them as Decimal.
 export default function CriteriaTable({ rows, onChange }: Props) {
   const edit = (i: number, key: keyof Criterion) =>
@@ -13,8 +18,10 @@ export default function CriteriaTable({ rows, onChange }: Props) {
     <table className="table">
       <thead>
         <tr>
-          <th>Code</th><th>What the bidder must show</th><th>Scored per</th><th className="right">Marks</th>
-          <th className="right">Max items</th><th>Marks per item</th><th>Scored by</th>
+          <th>Code</th><th>What the bidder must show</th>
+          {SHOW_SCORING_SETTINGS && <th>Scored per</th>}
+          <th className="right">Marks</th>
+          {SHOW_SCORING_SETTINGS && <><th className="right">Max items</th><th>Marks per item</th><th>Scored by</th></>}
         </tr>
       </thead>
       <tbody>
@@ -29,33 +36,41 @@ export default function CriteriaTable({ rows, onChange }: Props) {
               <textarea id={`m${i}`} rows={2} value={c.meaning ?? ""} onChange={edit(i, "meaning")} />
               <details><summary className="small">RFP text</summary><p className="small">{c.rfp_text}</p></details>
             </td>
-            <td>
-              <label className="sr-only" htmlFor={`k${i}`}>Scored per</label>
-              <select id={`k${i}`} value={c.kind ?? ""} onChange={edit(i, "kind")}>
-                <option value="">—</option>
-                <option value="PROJECT">Project</option>
-                <option value="CV">CV</option>
-              </select>
-            </td>
+            {SHOW_SCORING_SETTINGS && (
+              <>
+                <td>
+                  <label className="sr-only" htmlFor={`k${i}`}>Scored per</label>
+                  <select id={`k${i}`} value={c.kind ?? ""} onChange={edit(i, "kind")}>
+                    <option value="">—</option>
+                    <option value="PROJECT">Project</option>
+                    <option value="CV">CV</option>
+                  </select>
+                </td>
+              </>
+            )}
             <td className="right">
               <label className="sr-only" htmlFor={`x${i}`}>Max marks</label>
               <input id={`x${i}`} className="narrow num" type="text" value={c.max_marks ?? ""} onChange={edit(i, "max_marks")} />
             </td>
-            <td className="right">
-              <label className="sr-only" htmlFor={`n${i}`}>Max items</label>
-              <input id={`n${i}`} className="narrow num" type="text" value={c.max_items ?? ""} onChange={edit(i, "max_items")} />
-            </td>
-            <td>
-              <label className="sr-only" htmlFor={`a${i}`}>Allowed marks per item</label>
-              <input id={`a${i}`} type="text" value={c.allowed ?? ""} placeholder="e.g. 1, 1.5, 2" onChange={edit(i, "allowed")} />
-            </td>
-            <td>
-              <label className="sr-only" htmlFor={`s${i}`}>Scored by</label>
-              <select id={`s${i}`} value={c.scored_by} onChange={edit(i, "scored_by")}>
-                <option value="LLM">AI + committee</option>
-                <option value="COMMITTEE">Committee only</option>
-              </select>
-            </td>
+            {SHOW_SCORING_SETTINGS && (
+              <>
+                <td className="right">
+                  <label className="sr-only" htmlFor={`n${i}`}>Max items</label>
+                  <input id={`n${i}`} className="narrow num" type="text" value={c.max_items ?? ""} onChange={edit(i, "max_items")} />
+                </td>
+                <td>
+                  <label className="sr-only" htmlFor={`a${i}`}>Allowed marks per item</label>
+                  <input id={`a${i}`} type="text" value={c.allowed ?? ""} placeholder="e.g. 1, 1.5, 2" onChange={edit(i, "allowed")} />
+                </td>
+                <td>
+                  <label className="sr-only" htmlFor={`s${i}`}>Scored by</label>
+                  <select id={`s${i}`} value={c.scored_by} onChange={edit(i, "scored_by")}>
+                    <option value="LLM">AI + committee</option>
+                    <option value="COMMITTEE">Committee only</option>
+                  </select>
+                </td>
+              </>
+            )}
           </tr>
         ))}
       </tbody>
