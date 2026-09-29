@@ -3,6 +3,18 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-041 Host with Docker Compose on one EC2 VM, deployed by GitHub Actions (2026-09-29)
+Four containers from `docker-compose.prod.yml`: `web` (nginx serving the React
+build and proxying /api), `api`, `worker` (same Python image) and `db` (Postgres
+16 + pgvector, no host port). Supersedes the systemd setup in the old
+deploy-ec2.md. A push to `dev` runs the tests; if they pass, GitHub Actions copies
+the commit (`git archive`) and the `ENV_FILE` secret to the VM over SSH and runs
+`deploy/remote-deploy.sh`, which builds the images on the VM. Chosen over pushing
+images to a registry: no registry credentials on the VM and nothing else to run;
+the trade-off is a build on the VM at each deploy (a few minutes on t2.xlarge).
+The site is plain http until a domain and TLS are added; with no login (D-024)
+the security group must admit only the committee's IPs.
+
 ## D-040 Item overrides: a number up to the per-item maximum (2026-09-29)
 Supersedes the list part of D-037. The committee types the overriding marks again;
 any mark from 0 up to the most one item can earn is accepted (the highest per-item

@@ -7,3 +7,6 @@ __pycache__/
 *.xlsx
 runs/
 .env.local
+*.pem
+.env.production
+Screenshot*.png

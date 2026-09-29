@@ -1,0 +1,59 @@
+# Production stack on the EC2 VM: web (nginx + React) -> api -> db, plus the worker.
+# Deployed by .github/workflows/deploy.yml via deploy/remote-deploy.sh.
+# .env next to this file holds the secrets (written by the pipeline, never in git).
+name: rfp
+
+x-backend: &backend
+  build: ./backend
+  image: rfp-backend:latest
+  env_file: .env
+  environment:
+    DB_HOST: db            # the container, not localhost
+    DB_PORT: "5432"
+    LOCAL_FILE_DIR: /app/data/files
+    RUNS_DIR: /app/runs
+  volumes:
+    - files:/app/data      # local cache of S3 files
+    - runs:/app/runs       # step outputs + LLM answer cache (audit trail)
+  depends_on:
+    db:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${DB_NAME:-rfp_eval}
+      POSTGRES_USER: ${DB_USER:-rfp}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    # No ports: Postgres is reachable only from the other containers.
+
+  api:
+    <<: *backend
+
+  worker:
+    <<: *backend
+    command: ["python", "run.py", "worker"]
+
+  web:
+    build: ./frontend
+    image: rfp-web:latest
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  files:
+  runs:
