@@ -20,11 +20,15 @@ export interface RfpPage extends Head { rfp: Rfp | null }
 export interface Criterion {
   criterion_id: string; code: string; parent_code: string | null; is_group: boolean; stage: string; kind: string | null; title: string;
   rfp_text: string; meaning: string; max_marks: Marks | null; max_items: number | null;
-  scored_by: string; rfp_page: number | null; allowed: string;
+  scored_by: string; rfp_page: number | null; allowed: string; group_cap: Marks | null;
+  // Group headings only, computed by the API from the saved rows:
+  parts?: Marks[]; parts_total?: Marks; effective_total?: Marks; capped?: boolean; rfp_matches?: boolean | null;
+  // Scored rows only: set when max items × top mark per item differs from the marks.
+  items_warning?: string | null;
 }
 export interface Prompt { prompt_id: string; version: number; criteria_block: string; status: string }
 export interface CriteriaPage extends Head {
-  criteria: Criterion[]; prompt: Prompt | null; technical_total: Marks; group_warnings: string[];
+  criteria: Criterion[]; prompt: Prompt | null; technical_total: Marks;
 }
 
 export interface Firm { bidder_id: string; legal_name: string; short_name: string }
@@ -47,10 +51,14 @@ export interface RunPage extends Head { run: Run; rows: ProgressRow[] }
 export interface Cell { score_id: string; code: string; marks: Marks; needs_review: boolean; reviewed: boolean }
 export interface ResultRow {
   submission_id: string; name: string; stage: string; rank: string; cells: Record<string, Cell>;
-  docs: Marks; presentation: Marks | null; total: Marks;
+  groups: Record<string, GroupTotal>; docs: Marks; presentation: Marks | null; total: Marks;
 }
+// A group's total for one participant: the plain sum, and the total after its cap.
+// flags holds CAP_APPLIED when the cap trimmed marks (information, not a review reason).
+export interface GroupTotal { sum: Marks; total: Marks; flags: string[] }
 export interface ResultsPage extends Head {
   run: Run; codes: { code: string; max_marks: Marks | null }[]; rows: ResultRow[];
+  caps: { code: string; title: string; cap: Marks }[];
   presentation: { criterion_id: string; code: string; max_marks: Marks | null } | null;
   open_reviews: number; docs_max: Marks;
 }

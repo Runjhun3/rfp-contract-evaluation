@@ -3,6 +3,21 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-030 Group headings, group cap and CAP_APPLIED (2026-09-29)
+Group rows (A, B) showed as editable criteria and made the criteria page hard
+to check. They are now full-width headings with no inputs of their own: a
+computed total of their sub-rows (e.g. 36 = 16 + 10 + 10), checked against the
+marks the RFP states for the group; one "Scored by" that is applied to every
+sub-row on save ("Mixed" when sub-rows differ); and collapse/expand (expanded
+on every load, not remembered). A row warns when max items × the top mark per
+item differs from its marks. The scored total counts sub-rows only.
+An optional group cap (`criterion.group_cap`, migration 003) is edited behind
+the ✎ on the heading. When set, the group scores min(sum of sub-rows, cap).
+Python applies it to the final marks when results are shown
+(`app/evaluate/group_cap.py`), and keeps both numbers ("38 → 36"). A trimmed
+group is marked CAP_APPLIED: information, not a review reason, so it is kept
+apart from ARITHMETIC and never makes a mark need a decision.
+
 ## D-029 Python recomputes the LLM's numeric tests; one automatic re-check (2026-09-28)
 PwC's run judged ₹5,89,00,000 "not above 5 crore" (A.3) and put ₹5.02 Cr and
 ₹5.89 Cr in the 2–5 crore band (A.2), although it had read both values

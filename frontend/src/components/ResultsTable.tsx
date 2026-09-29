@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { marks, titleCase } from "../format";
-import type { Cell, ResultsPage } from "../types";
+import type { Cell, GroupTotal, ResultsPage } from "../types";
 
 type Props = {
   data: ResultsPage;
@@ -15,6 +15,19 @@ function ScoreCell({ cell }: { cell: Cell | undefined }) {
   return <Link className={cls} to={`/scores/${cell.score_id}`}>{open && "● "}{marks(cell.marks)}</Link>;
 }
 
+// A capped group's total: "38 → 36" with a note when the cap trimmed marks, so the
+// committee sees both numbers. Information only; it needs no decision.
+function GroupCell({ group }: { group: GroupTotal | undefined }) {
+  if (!group) return <span className="muted">—</span>;
+  if (!group.flags.includes("CAP_APPLIED")) return <>{marks(group.total)}</>;
+  return (
+    <>
+      <span className="muted">{marks(group.sum)} → </span><strong>{marks(group.total)}</strong>
+      <br /><span className="small muted">cap applied</span>
+    </>
+  );
+}
+
 // The ranked matrix: one row per participant, one column per scored criterion.
 export default function ResultsTable({ data, presentation, onPresentation }: Props) {
   const pres = data.presentation;
@@ -24,6 +37,7 @@ export default function ResultsTable({ data, presentation, onPresentation }: Pro
         <tr>
           <th>Rank</th><th>Participant</th>
           {data.codes.map((c) => <th key={c.code} className="right">{c.code} /{marks(c.max_marks)}</th>)}
+          {data.caps.map((g) => <th key={g.code} className="right" title={g.title}>{g.code} total /{marks(g.cap)} cap</th>)}
           <th className="right">Docs /{marks(data.docs_max)}</th>
           {pres && <th className="right">{pres.code} presentation /{marks(pres.max_marks)}</th>}
           <th className="right">Total</th>
@@ -38,6 +52,7 @@ export default function ResultsTable({ data, presentation, onPresentation }: Pro
               {r.stage !== "DONE" && <><br /><span className="small muted">{titleCase(r.stage)}</span></>}
             </td>
             {data.codes.map((c) => <td key={c.code} className="right"><ScoreCell cell={r.cells[c.code]} /></td>)}
+            {data.caps.map((g) => <td key={g.code} className="right"><GroupCell group={r.groups[g.code]} /></td>)}
             <td className="right"><strong>{marks(r.docs)}</strong></td>
             {pres && (
               <td className="right">

@@ -80,6 +80,10 @@ For every item the LLM marks eligible:
 | SUSPICIOUS_TEXT | a page contains text addressed to the evaluator (instructions, "award full marks") |
 | NO_ANCHOR | an item was found only by search, not a header page |
 
+`CAP_APPLIED` is not a review flag: it marks a group whose total was trimmed to
+its group cap (D-030). It is computed from the final marks when results are
+shown, with the uncapped sum beside the capped total, and needs no decision.
+
 ## 4. Committee
 1. Review screen lists every claim: counted/excluded, reason, quotes with
    pass/fail, link to the S3 page (presigned URL, 15 min).

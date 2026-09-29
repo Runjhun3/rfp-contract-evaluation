@@ -62,7 +62,21 @@ input[type=number], select, textarea {
   font: 15px var(--sans); color: var(--ink); background: var(--card); }
 textarea { resize: vertical; line-height: 1.5; }
 .table textarea { width: 100%; min-width: 320px; }
-.table td.sub-code { padding-left: 32px; }
+/* Criteria: group headings as full-width bands, sub-rows indented under them */
+.table tr.group-head td { background: var(--head); padding: 10px 16px; border-top: 1px solid var(--line); }
+.group-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.group-bar .group-name { flex: 1 1 280px; }
+.group-bar select { min-height: 36px; padding: 4px 8px; font-size: 14px; }
+.group-bar input.narrow { min-height: 36px; width: 80px; }
+.toggle, .icon { width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--muted); font-size: 15px; cursor: pointer; }
+.toggle:hover, .icon:hover { background: var(--line-soft); color: var(--ink); }
+.table tr.sub-row td:first-child { background: linear-gradient(to right, transparent 31px,
+  var(--line) 31px, var(--line) 33px, transparent 33px); }
+.table tr.depth-1 td:first-child { padding-left: 48px; }
+.table tr.depth-2 td:first-child { padding-left: 64px; }
+.table tr.depth-3 td:first-child { padding-left: 80px; }
+.warn { margin: 6px 0 0; color: var(--amber-ink); text-align: left; max-width: 220px; margin-left: auto; }
 fieldset { margin: 0; padding: 0; border: 0; }
 legend { padding: 0; margin-bottom: 8px; }
 input[type=file] { font: 14px var(--sans); }

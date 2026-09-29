@@ -66,13 +66,8 @@ export default function Criteria() {
               <p className="sub">Check each criterion against the RFP. Marks, limits and the rule text below are what the evaluator applies.</p>
               <span className="chip blue num">Scored criteria total {marks(data.technical_total)}</span>
             </div>
-            {data.group_warnings.length > 0 && (
-              <div className="notice" role="alert">
-                {data.group_warnings.map((w) => <p key={w}>{w}</p>)}
-              </div>
-            )}
             <form className="page-form" onSubmit={save}>
-              <CriteriaTable rows={rows} onChange={setRows} />
+              <CriteriaTable rows={rows} saved={data.criteria} onChange={setRows} />
               <section className="card">
                 <h2>Rule text used by the evaluator{prompt && ` · version ${prompt.version} (${prompt.status.toLowerCase()})`}</h2>
                 <p className="small muted">Only criteria marked "Scored per: Project/CV" and "AI + committee" are evaluated from the bids.</p>

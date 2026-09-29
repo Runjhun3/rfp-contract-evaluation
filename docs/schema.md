@@ -34,10 +34,14 @@ tender ─┬─ tender_document
         │                  └─ criterion_score ─── review_decision
         ├─ manual_score
         └─ job
-views: final_score (review wins over checked marks), run_total (/65 + /35)
+views: final_score (review wins over checked marks), run_total (/65 + /35, before group caps)
 ```
 
 ## Rules the schema enforces
+- **Group caps.** `criterion.group_cap` (group headings only) limits a group to
+  min(sum of its sub-criteria, cap). Python applies it to the final marks
+  (`app/evaluate/group_cap.py`); `run_total` is the uncapped sum, so results and
+  exports use the Python totals.
 - **Extraction vs judgement.** `page` holds only text/OCR. Anything an LLM
   decided (`page_label`, `bid_item`, `item_result`, `criterion_score`) hangs off
   a `run_id`, so re-running with a new prompt never overwrites old results.
