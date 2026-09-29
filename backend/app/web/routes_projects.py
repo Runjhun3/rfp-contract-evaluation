@@ -1,4 +1,4 @@
-"""API: session, projects list, new project, RFP upload and criteria review."""
+"""API: projects list, new project, RFP upload and criteria review."""
 from datetime import date
 
 from starlette.routing import Route
@@ -7,7 +7,7 @@ from app import files
 from app.db import q_projects, q_runs
 from app.db.connection import transaction
 from app.db.repo_setup import LOCAL_USER_ID
-from app.web.auth import check_csrf, csrf_token
+from app.web.auth import check_csrf
 from app.web.common import BadUpload, fail, ok, read_pdf_upload, stepper
 
 LANDING = {"DRAFT": "rfp", "RFP_UPLOADED": "criteria", "CRITERIA_READY": "criteria",
@@ -16,10 +16,6 @@ LANDING = {"DRAFT": "rfp", "RFP_UPLOADED": "criteria", "CRITERIA_READY": "criter
 
 def _db(request):
     return transaction(request.app.state.settings)
-
-
-async def session(request):
-    return ok({"csrf": csrf_token(request), "user": "Local user"})
 
 
 async def list_projects(request):
@@ -102,7 +98,6 @@ async def upload_rfp(request):
 
 
 routes = [
-    Route("/api/v1/session", session, methods=["GET"]),
     Route("/api/v1/projects", list_projects, methods=["GET"]),
     Route("/api/v1/projects", create_project, methods=["POST"]),
     Route("/api/v1/projects/{tender_id:uuid}", open_project, methods=["GET"]),

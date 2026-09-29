@@ -3,6 +3,20 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-042 Sign-in with one account from .env; product name BidLens (2026-09-29)
+Supersedes D-024 (no login). The app is going onto a VM, and "anyone who can reach
+the URL can do everything" is not acceptable for confidential bids and CVs.
+One account, `APP_USERNAME` / `APP_PASSWORD` in `.env` (the server's ENV_FILE
+secret); `.env.example` keeps the password blank. The API refuses every call
+except `/session` and `/login` with 401 until the session is signed in
+(`RequireLogin`), so the protection does not depend on the UI. Credentials are
+compared in constant time, a wrong password waits 1 s, sign-in starts a fresh
+session with a new CSRF token, and an empty password signs nobody in. Set
+`SESSION_SECRET`, or every restart signs users out. Actions are still recorded
+as the built-in "Local user"; named accounts and roles come later if the
+committee needs per-person audit. The UI is renamed BidLens (sign-in page,
+top bar, tab titles).
+
 ## D-041 Host with Docker Compose on one EC2 VM, deployed by GitHub Actions (2026-09-29)
 Four containers from `docker-compose.prod.yml`: `web` (nginx serving the React
 build and proxying /api), `api`, `worker` (same Python image) and `db` (Postgres

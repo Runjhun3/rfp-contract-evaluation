@@ -44,9 +44,11 @@ Bids are commercially confidential, and CVs contain personal data (DPDP Act
 - npm packages are code we run: keep the list short, commit
   `package-lock.json`, run `npm audit` before each release.
 
-## Access (no login)
-The UI has no login or roles (decisions.md D-024): anyone who can reach it can
-upload, evaluate, approve and decide, and every action is recorded as "Local
-user". So the UI must never be reachable from the internet. Run it on
-localhost, or on the VM behind a security group / VPN that admits only the
-committee's machines. Bring back accounts before opening it wider.
+## Access (one sign-in account)
+One account from `.env` (`APP_USERNAME` / `APP_PASSWORD`; decisions.md D-042).
+Every API call except `/api/v1/session` and `/api/v1/login` needs a signed-in
+session (401 otherwise). The password lives only in `.env` / the ENV_FILE
+secret, never in `.env.example`, git or chat; change it by editing `.env` and
+restarting. Everyone shares the account and actions are recorded as "Local
+user", so there is no per-person audit yet. Keep the security group limited to
+the committee's IPs until there is TLS and named accounts.

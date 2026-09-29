@@ -84,7 +84,8 @@ def test_full_flow(tmp_path):
     root = tmp_path
     s = Settings(llm_cache_dir=str(root/'llm'), local_file_dir=str(root/'files'),
                  runs_dir=str(root/'runs'),
-                 ocr_engine='tesseract', ocr_min_chars=0, ocr_min_image_ratio=9)
+                 ocr_engine='tesseract', ocr_min_chars=0, ocr_min_image_ratio=9,
+                 app_username='tester', app_password='test-pass-1')
     with transaction(s) as cur:
         cur.execute("drop schema public cascade; create schema public")
     migrate(s)
@@ -93,6 +94,12 @@ def test_full_flow(tmp_path):
     def ok(cond, what): assert cond, what
     def data(r): return r.json()["data"]
 
+    ok(c.get("/api/v1/projects").status_code == 401, "API refused before sign-in")
+    token = data(c.get("/api/v1/session"))["csrf"]
+    r = c.post("/api/v1/login", json={"username": "tester", "password": "wrong"},
+               headers={"X-CSRF-Token": token}); ok(r.status_code == 401, "wrong password refused")
+    r = c.post("/api/v1/login", json={"username": "tester", "password": "test-pass-1"},
+               headers={"X-CSRF-Token": token}); ok(r.status_code == 200, "sign in")
     r = c.get("/api/v1/projects"); ok(r.status_code == 200 and data(r)["projects"] == [], "empty projects list")
     for h, v in [("content-security-policy", "default-src 'self'"), ("x-frame-options", "DENY")]:
         ok(v in r.headers.get(h, ""), f"header {h}")

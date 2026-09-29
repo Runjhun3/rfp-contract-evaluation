@@ -12,7 +12,8 @@ browser ──80──▶ web (nginx: React build, /api → api) ──▶ api (
 ## Instance (current)
 - `i-0beb51894135c3381`, Amazon Linux 2023, t2.xlarge (4 vCPU / 16 GB),
   40 GB disk, Elastic IP **13.204.151.164**, login user `ec2-user`.
-- **Security group: the UI has no login (D-024).** Allow port 80 (and 443 once
+- **Security group: one shared sign-in (D-042), no TLS yet.** Put `APP_USERNAME`,
+  `APP_PASSWORD` and `SESSION_SECRET` in the ENV_FILE secret. Allow port 80 (and 443 once
   TLS is added) only from the committee's office/VPN IPs, and 22 only from admin
   IPs. Never 0.0.0.0/0. Port 5432 is never opened (Postgres has no host port).
 - AWS access comes from the keys in the production `.env`. An IAM instance role

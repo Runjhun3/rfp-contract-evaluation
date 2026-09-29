@@ -117,10 +117,11 @@ Marks are exact strings (Decimal on the server), never JSON numbers.
 | 4 Evaluate (`/runs/{id}`) | POST /projects/{id}/runs → EVALUATE_SUBMISSION jobs; GET /runs/{id}, polled every 5 s until DONE/FAILED |
 | 5 Results (`/runs/{id}/results`) | GET /runs/{id}/results, POST /runs/{id}/presentation |
 | Evidence (`/scores/{id}?item=&page=`) | GET /scores/{id}?item=, POST /scores/{id}/decision, GET /submissions/{id}/pages/{n}.png |
-| (session) | GET /session → the CSRF token |
+| Sign in (`/login`) | GET /session → CSRF token + signed-in user, POST /login, POST /logout |
 
-No login (decisions.md D-024): every action is recorded against the built-in
-"Local user". Every POST sends the session's CSRF token in `X-CSRF-Token`.
+One sign-in account from .env (decisions.md D-042): every API call except
+/session and /login needs a signed-in session (401 → the UI shows /login). Actions
+are recorded against the built-in "Local user". Every POST sends the session's CSRF token in `X-CSRF-Token`.
 Any other GET path returns the React app's index.html (client-side routing).
 Security headers: CSP `default-src 'self'` (no inline script/style), X-Frame-Options DENY,
 nosniff, same-origin referrer, HSTS when COOKIE_SECURE.

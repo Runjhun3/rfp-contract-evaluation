@@ -11,9 +11,9 @@ from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import Settings
-from app.web import (routes_bids, routes_criteria, routes_evidence, routes_projects,
+from app.web import (routes_auth, routes_bids, routes_criteria, routes_evidence, routes_projects,
                      routes_results, routes_runs, spa)
-from app.web.auth import Forbidden
+from app.web.auth import Forbidden, RequireLogin
 from app.web.common import fail
 
 SECURITY_HEADERS = {
@@ -54,15 +54,16 @@ async def _not_found(request, exc):
 
 
 def create_app(settings: Settings) -> Starlette:
-    # The session only carries the CSRF token, so a fresh key per start is fine.
+    # The session carries the sign-in: set SESSION_SECRET, or every restart signs users out.
     session_secret = settings.session_secret or secrets.token_urlsafe(32)
-    routes = [*routes_projects.routes, *routes_criteria.routes, *routes_bids.routes,
+    routes = [*routes_auth.routes, *routes_projects.routes, *routes_criteria.routes, *routes_bids.routes,
               *routes_runs.routes, *routes_results.routes, *routes_evidence.routes,
               *spa.routes()]
     middleware = [
         Middleware(SecurityHeaders, secure=settings.cookie_secure),
         Middleware(SessionMiddleware, secret_key=session_secret,
                    https_only=settings.cookie_secure, same_site="strict", max_age=8 * 3600),
+        Middleware(RequireLogin),          # inside SessionMiddleware: it reads the session
     ]
     app = Starlette(routes=routes, middleware=middleware, exception_handlers={
         Forbidden: _forbidden, json.JSONDecodeError: _bad_json, 404: _not_found})

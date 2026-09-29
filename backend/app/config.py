@@ -36,7 +36,9 @@ class Settings(BaseSettings):
     file_store: str = "local"            # local | s3
     local_file_dir: str = "data/files"   # local store, and the cache for S3 files
     runs_dir: str = "runs"
-    session_secret: str = ""             # optional; a random key is made at start if empty
+    session_secret: str = Field("", repr=False)  # set it: a random key per start signs everyone out
+    app_username: str = ""               # the one sign-in account (decisions.md D-042)
+    app_password: str = Field("", repr=False)   # empty = nobody can sign in
     cookie_secure: bool = False          # True when the UI is served over HTTPS
 
     review_confidence: Decimal = Decimal("0.80")

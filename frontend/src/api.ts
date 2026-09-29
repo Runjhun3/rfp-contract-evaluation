@@ -1,6 +1,10 @@
 // The only place that talks to the Python API. Every reply is {data, message}.
 // Writes send the session's CSRF token in X-CSRF-Token; on a 403 the token is
 // fetched again once (the server makes a new session key when it restarts).
+// A 401 means the session is not signed in: SIGNED_OUT is dispatched on window
+// so RequireAuth can send the user to the sign-in page.
+
+export const SIGNED_OUT = "bidlens:signed-out";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -10,6 +14,8 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
+
+export interface Session { csrf: string; user: string | null }
 
 let csrf: string | null = null;
 
@@ -32,12 +38,15 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
     clearTimeout(timer);
   }
   const reply = await res.json().catch(() => ({ data: null, message: res.statusText }));
+  if (res.status === 401 && path !== "/api/v1/login" && typeof window !== "undefined") {
+    window.dispatchEvent(new Event(SIGNED_OUT));
+  }
   if (!res.ok) throw new ApiError(reply.message || "Something went wrong.", res.status);
   return reply.data as T;
 }
 
 async function token(refresh = false): Promise<string> {
-  if (!csrf || refresh) csrf = (await call<{ csrf: string }>("GET", "/api/v1/session")).csrf;
+  if (!csrf || refresh) csrf = (await call<Session>("GET", "/api/v1/session")).csrf;
   return csrf;
 }
 
@@ -53,6 +62,25 @@ export async function post<T = null>(path: string, body?: unknown): Promise<T> {
     await token(true);
     return call<T>("POST", path, body);
   }
+}
+
+// Who is signed in (null if nobody); also refreshes the CSRF token.
+export async function session(): Promise<Session> {
+  const s = await call<Session>("GET", "/api/v1/session");
+  csrf = s.csrf;
+  return s;
+}
+
+// The server starts a new session on sign-in, with a new CSRF token.
+export async function signIn(username: string, password: string): Promise<string> {
+  const s = await post<{ csrf: string; user: string }>("/api/v1/login", { username, password });
+  csrf = s.csrf;
+  return s.user;
+}
+
+export async function signOut(): Promise<void> {
+  await post("/api/v1/logout");
+  csrf = null;
 }
 
 export function resetForTests(): void {

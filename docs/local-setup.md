@@ -42,7 +42,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python run.py migrate           # applies backend/migrations/*.sql
-python run.py web               # API + built UI on http://127.0.0.1:8000, no login
+python run.py web               # API + built UI on http://127.0.0.1:8000 (sign in first)
 python run.py worker            # second terminal: criteria extraction + evaluations
 pytest                          # unit tests
 pytest tests/integration        # full API flow; needs an EMPTY test database + data/golden/nsdf PDFs
@@ -55,8 +55,9 @@ npm test                        # UI unit tests (vitest); `npm run typecheck` fo
 While changing the UI, run `npm run dev` instead of `npm run build` and open
 http://localhost:5173: Vite reloads on every save and proxies `/api` to the
 Python app on port 8000 (keep `python run.py web` running).
-No login or roles (decisions.md D-024): the UI opens on Projects and every action
-is recorded as "Local user". Keep it on localhost or a private network.
+Sign in with `APP_USERNAME` / `APP_PASSWORD` from `.env` (decisions.md D-042).
+Set `SESSION_SECRET` too, or every restart signs you out. Every action is still
+recorded as "Local user".
 
 ## Environment variables
 | Name | Example | Notes |
