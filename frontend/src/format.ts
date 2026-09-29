@@ -16,6 +16,7 @@ export function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
 
-export function reasons(list: string[] | null): string {
-  return (list ?? []).join(", ").replace(/_/g, " ").toLowerCase();
+// A run is over once every participant is DONE or FAILED (the API sets run.status).
+export function runFinished(status: string): boolean {
+  return status === "DONE" || status === "FAILED";
 }

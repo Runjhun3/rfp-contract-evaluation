@@ -62,7 +62,10 @@ CLAUDE.md is the index that points here.
 - Every Bedrock call goes through `app/llm/bedrock.py` (temperature 0, model
   from settings, prompt caching on the system + criteria block, retries with
   backoff on throttling). Nothing else calls Bedrock.
-- Dates are `datetime.date`. Timestamps are timezone-aware UTC.
+- Dates are `datetime.date`. Timestamps are timezone-aware and in IST (`Asia/Kolkata`,
+  `app.config.TIMEZONE`): columns are `timestamptz`, every DB session runs with
+  `TimeZone=Asia/Kolkata` (so `now()`, `to_char()` and returned values are IST), and
+  worker log times are IST.
 - Raise specific exceptions. Never `except Exception: pass`.
 
 ## Frontend (React + TypeScript, `frontend/`)

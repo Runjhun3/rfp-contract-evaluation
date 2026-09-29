@@ -78,6 +78,15 @@ def latest_run(cur, tender_id: str) -> dict | None:
                            order by created_at desc limit 1""", (tender_id,))
 
 
+def has_results(cur, tender_id: str) -> bool:
+    """A participant of this project has a finished evaluation in any run."""
+    row = one_row(cur, """select exists (select 1 from run_submission x
+                                          join evaluation_run r using (run_id)
+                                          where r.tender_id = %s and x.stage = 'DONE') as done""",
+                  (tender_id,))
+    return bool(row and row["done"])
+
+
 def progress(cur, run_id: str) -> list[dict]:
     return all_rows(cur, """select x.submission_id::text, b.short_name, x.stage, x.items_done,
                                    x.items_total, x.error

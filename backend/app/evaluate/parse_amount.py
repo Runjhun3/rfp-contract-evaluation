@@ -5,6 +5,8 @@ Handles: "INR 9.06 Crore", "Rs. 9,06,00,000/-", "₹ 906 lakh", "9.06 Cr".
 import re
 from decimal import Decimal, InvalidOperation
 
+from app.evaluate.bounds import split_bound
+
 UNITS = {
     "crore": Decimal(10) ** 7, "crores": Decimal(10) ** 7, "cr": Decimal(10) ** 7,
     "crs": Decimal(10) ** 7, "lakh": Decimal(10) ** 5, "lakhs": Decimal(10) ** 5,
@@ -25,7 +27,12 @@ def parse_amounts(quote: str) -> list[Decimal]:
 
 
 def amount_matches(fact_value: str, quote: str, tolerance: Decimal) -> tuple[bool, str]:
-    target = Decimal(str(fact_value).replace(",", ""))
+    """Raises ValueError when the LLM's value is not a rupee number. A value stated as a
+    bound ("> 300000000000", "more than ...") is checked by its number."""
+    try:
+        target = Decimal(split_bound(str(fact_value))[1].strip().replace(",", ""))
+    except InvalidOperation as err:
+        raise ValueError(f"not a rupee amount: {fact_value!r}") from err
     amounts = parse_amounts(quote)
     for amount in amounts:
         if target and abs(amount - target) <= abs(target) * tolerance:

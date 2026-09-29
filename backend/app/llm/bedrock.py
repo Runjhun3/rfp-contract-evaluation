@@ -13,14 +13,16 @@ CACHE_MIN_CHARS = 6000   # below Bedrock's minimum cacheable size, skip the cach
 def make_completer(settings: Settings):
     runtime = client("bedrock-runtime", settings)
 
-    def complete(system: str, user: str) -> str:
+    def complete(system: str, user: str, images: list[bytes]) -> str:
         system_blocks = [{"text": system}]
         if len(system) >= CACHE_MIN_CHARS:
             system_blocks.append({"cachePoint": {"type": "default"}})
         response = runtime.converse(
             modelId=settings.claude_model,
             system=system_blocks,
-            messages=[{"role": "user", "content": [{"text": user}]}],
+            messages=[{"role": "user", "content": [
+                *({"image": {"format": "png", "source": {"bytes": png}}} for png in images),
+                {"text": user}]}],
             inferenceConfig={"temperature": 0, "maxTokens": settings.llm_max_tokens},
         )
         content = response["output"]["message"]["content"]

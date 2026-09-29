@@ -46,15 +46,20 @@ def fail(message: str, status_code: int = 400) -> ApiResponse:
     return ApiResponse({"data": None, "message": message}, status_code=status_code)
 
 
-def stepper(project: dict, current: str, run_id: str | None) -> list[dict]:
-    """Steps of one project; `url` is the React route, None while a step is locked."""
+def stepper(project: dict, current: str, run_id: str | None,
+            results_ready: bool = False) -> list[dict]:
+    """Steps of one project; `url` is the React route, None while a step is locked.
+    results_ready: a participant has a finished evaluation, so Results opens even while
+    another run is going."""
     reached = STATUS_STEP.get(project["status"], 0)
     base = f"/projects/{project['tender_id']}"
     urls = {"rfp": f"{base}/rfp", "criteria": f"{base}/criteria",
             "participants": f"{base}/participants",
             "evaluate": f"/runs/{run_id}" if run_id else None,
-            "results": f"/runs/{run_id}/results" if run_id else None}
-    return [{"n": i + 1, "key": key, "label": label, "url": urls[key] if i <= reached else None,
+            "results": f"{base}/results"}
+    open_early = {"results"} if results_ready else set()
+    return [{"n": i + 1, "key": key, "label": label,
+             "url": urls[key] if i <= reached or key in open_early else None,
              "done": i < reached, "current": key == current}
             for i, (key, label) in enumerate(STEPS)]
 

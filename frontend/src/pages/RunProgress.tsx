@@ -2,12 +2,12 @@ import { Link, useParams } from "react-router-dom";
 import { usePageTitle } from "../components/Layout";
 import ProjectHead from "../components/ProjectHead";
 import { Loading } from "../components/Status";
+import { runFinished } from "../format";
 import type { RunPage } from "../types";
 import { useApi } from "../useApi";
 
-const finished = (status: string) => status === "DONE" || status === "FAILED";
 // Live progress: ask again every 5 s until the run is DONE or FAILED.
-const whileRunning = (d: RunPage) => (finished(d.run.status) ? null : 5000);
+const whileRunning = (d: RunPage) => (runFinished(d.run.status) ? null : 5000);
 
 export default function RunProgress() {
   const { runId } = useParams();
@@ -15,6 +15,8 @@ export default function RunProgress() {
   usePageTitle(data && `Evaluating · ${data.project.name}`);
   if (!data) return <Loading error={error} />;
   const { run } = data;
+  const finished = runFinished(run.status);
+  const results = data.steps.find((s) => s.key === "results")?.url;
 
   return (
     <main className="page">
@@ -24,7 +26,11 @@ export default function RunProgress() {
           <h2>Run started {run.started} · criteria v{run.prompt_version}</h2>
           <p className="sub">You can close this page. Results appear per participant as each one finishes.</p>
         </div>
-        {finished(run.status) && <Link className="btn primary" to={`/runs/${run.run_id}/results`}>View results</Link>}
+        {results && (
+          <Link className="btn primary" to={results}>
+            {finished ? "View results" : "View results so far"}
+          </Link>
+        )}
       </div>
       {error && <p className="small muted" role="status">Lost contact with the server; retrying…</p>}
       <table className="table">

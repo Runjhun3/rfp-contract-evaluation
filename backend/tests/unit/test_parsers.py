@@ -28,6 +28,8 @@ def test_dates_day_first():
     assert date(2023, 3, 31) in full
     full, _ = parse_dates('Work Order dated 18" June 2022 (% 6.00 Cr)')   # OCR noise
     assert date(2022, 6, 18) in full
+    full, _ = parse_dates("Work Order No:- M2003676 Date 25-OCT-2020")
+    assert full == [date(2020, 10, 25)]
 
 
 def test_month_only_date():

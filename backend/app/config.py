@@ -5,6 +5,8 @@ from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+TIMEZONE = "Asia/Kolkata"   # IST: every DB session and log timestamp uses it
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=("../.env", ".env"), extra="ignore")
@@ -43,7 +45,8 @@ class Settings(BaseSettings):
 
     def db_conninfo(self) -> str:
         return (f"host={self.db_host} port={self.db_port} dbname={self.db_name} "
-                f"user={self.db_user} password={self.db_password}")
+                f"user={self.db_user} password={self.db_password} "
+                f"options='-c TimeZone={TIMEZONE}'")
 
 
 @lru_cache

@@ -52,8 +52,9 @@ def project_head(cur, tender_id: str, current: str) -> dict | None:
     if project is None:
         return None
     run = q_runs.latest_run(cur, tender_id)
-    return {"project": project, "steps": stepper(project, current, run and run["run_id"]),
-            "latest_run": run}
+    steps = stepper(project, current, run and run["run_id"],
+                    results_ready=q_runs.has_results(cur, tender_id))
+    return {"project": project, "steps": steps, "latest_run": run}
 
 
 async def open_project(request):
@@ -63,8 +64,10 @@ async def open_project(request):
     if head is None:
         return fail("Project not found", 404)
     status, run, base = head["project"]["status"], head["latest_run"], f"/projects/{head['project']['tender_id']}"
-    if status in ("EVALUATING", "REVIEW", "CLOSED") and run:
-        landing = f"/runs/{run['run_id']}" + ("/results" if status != "EVALUATING" else "")
+    if status == "EVALUATING" and run:
+        landing = f"/runs/{run['run_id']}"
+    elif status in ("REVIEW", "CLOSED"):
+        landing = f"{base}/results"
     else:
         landing = f"{base}/{LANDING.get(status, 'criteria')}"
     return ok({**head, "landing": landing})

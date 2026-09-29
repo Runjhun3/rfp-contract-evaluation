@@ -45,7 +45,7 @@ export default function Projects() {
                     </span>
                   </td>
                   <td>
-                    {p.open_reviews ? <span className="chip amber">{p.open_reviews} to review</span>
+                    {p.open_reviews ? <span className="chip amber">{p.open_reviews} to approve</span>
                       : <span className="muted">—</span>}
                   </td>
                   <td className="muted">{p.created}</td>

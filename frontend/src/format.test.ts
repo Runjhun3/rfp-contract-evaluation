@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { marks, plural, reasons, titleCase } from "./format";
+import { marks, plural, runFinished, titleCase } from "./format";
 
 describe("format", () => {
   it("shows marks exactly as the API sent them, or a dash", () => {
@@ -14,10 +14,14 @@ describe("format", () => {
     expect(titleCase("REVIEW")).toBe("Review");
   });
 
-  it("pluralises and lists review reasons", () => {
+  it("pluralises", () => {
     expect(plural(1, "participant")).toBe("1 participant");
     expect(plural(3, "participant")).toBe("3 participants");
-    expect(reasons(["QUOTE_NOT_FOUND", "LOW_CONFIDENCE"])).toBe("quote not found, low confidence");
-    expect(reasons(null)).toBe("");
+  });
+
+  it("treats a run as finished once it is DONE or FAILED", () => {
+    expect(runFinished("DONE")).toBe(true);
+    expect(runFinished("FAILED")).toBe(true);
+    expect(runFinished("RUNNING")).toBe(false);
   });
 });

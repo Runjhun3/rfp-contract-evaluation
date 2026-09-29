@@ -1,9 +1,7 @@
 """API: the criteria read from the RFP, their rule text, and approval."""
-from decimal import Decimal
-
 from starlette.routing import Route
 
-from app.criteria import missing_max_marks
+from app.criteria import missing_max_marks, review_view
 from app.db import q_projects
 from app.db.connection import transaction
 from app.db.repo_setup import LOCAL_USER_ID
@@ -24,10 +22,8 @@ async def criteria_page(request):
         head = project_head(cur, tender_id, "criteria")
         if head is None:
             return fail("Project not found", 404)
-        head.update(criteria=q_projects.criteria(cur, tender_id),
+        head.update(review_view(q_projects.criteria(cur, tender_id)),
                     prompt=q_projects.latest_prompt(cur, tender_id))
-    head["technical_total"] = sum((c["max_marks"] or Decimal(0) for c in head["criteria"]
-                                   if c["stage"] != "ELIGIBILITY"), Decimal(0))
     return ok(head)
 
 

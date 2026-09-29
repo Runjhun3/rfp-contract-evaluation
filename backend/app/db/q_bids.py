@@ -23,19 +23,22 @@ def submissions(cur, tender_id: str) -> list[dict]:
         from bid_submission s join bidder b using (bidder_id)
         left join lateral (select * from submission_file x where x.submission_id = s.submission_id
                            order by x.uploaded_at desc limit 1) f on true
-        where s.tender_id = %s order by b.short_name""", (tender_id,))
+        where s.tender_id = %s and s.included order by b.short_name""", (tender_id,))
 
 
 def set_participants(cur, tender_id: str, bidder_ids: list[str]) -> None:
-    """Add newly ticked firms; remove unticked ones that have no bid file yet."""
+    """Exactly the ticked firms take part. An unticked firm is switched off, never
+    deleted: its bid file and past results stay, and ticking it again restores it."""
     for bidder_id in bidder_ids:
-        cur.execute("""insert into bid_submission (tender_id, bidder_id) values (%s, %s)
-                       on conflict (tender_id, bidder_id) do nothing""", (tender_id, bidder_id))
-    cur.execute("""delete from bid_submission s where s.tender_id = %s
-                     and not (s.bidder_id::text = any(%s::text[]))
-                     and not exists (select 1 from submission_file f
-                                     where f.submission_id = s.submission_id)""",
-                (tender_id, bidder_ids))
+        add_participant(cur, tender_id, bidder_id)
+    cur.execute("""update bid_submission set included = (bidder_id::text = any(%s::text[]))
+                   where tender_id = %s""", (bidder_ids, tender_id))
+
+
+def add_participant(cur, tender_id: str, bidder_id: str) -> None:
+    cur.execute("""insert into bid_submission (tender_id, bidder_id) values (%s, %s)
+                   on conflict (tender_id, bidder_id) do update set included = true""",
+                (tender_id, bidder_id))
 
 
 def get_submission(cur, submission_id: str) -> dict | None:

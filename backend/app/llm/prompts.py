@@ -8,11 +8,13 @@ from pathlib import Path
 PROMPT_DIR = Path(__file__).resolve().parents[2] / "prompts"
 
 VERSIONS = {
-    "system": "system_v1",
-    "item": "item_eval_v1",
+    "system": "system_v2",
+    "item": "item_eval_v4",
     "criterion": "criterion_eval_v1",
-    "label": "page_label_v1",
-    "criteria": "criteria_extraction_v1",
+    "label": "page_label_v3",
+    "recheck": "item_recheck_v2",
+    "count_rule": "item_count_rule_v1",
+    "criteria": "criteria_extraction_v3",
 }
 
 _PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")

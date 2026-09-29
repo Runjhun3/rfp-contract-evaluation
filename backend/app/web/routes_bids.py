@@ -48,8 +48,7 @@ async def add_firm(request):
         return fail("Enter the firm's legal name.")
     with _db(request) as cur:
         bidder_id = q_bids.add_bidder(cur, legal, str(body.get("short_name") or "").strip())
-        cur.execute("""insert into bid_submission (tender_id, bidder_id) values (%s, %s)
-                       on conflict do nothing""", (tender_id, bidder_id))
+        q_bids.add_participant(cur, tender_id, bidder_id)
     return ok({"bidder_id": bidder_id}, "Firm added", 201)
 
 

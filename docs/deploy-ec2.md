@@ -57,7 +57,7 @@ only from the committee's IPs or VPN, never from 0.0.0.0/0.
 1. Open the UI → New project (NSDF details, bid closing date 2026-05-07) → upload the RFP.
 2. Worker extracts criteria → check them (A.1–B.2 "Scored per" Project/CV, marks per item) → Approve.
 3. Participants: add Deloitte, EY, GT, PwC → upload each bid → Evaluate.
-4. Results: compare with the committee sheet (tests/golden/nsdf/expected_scores.json); open amber
+4. Results: compare with the committee sheet (tests/golden/nsdf/expected_scores.json); open highlighted
    marks, record decisions, enter presentation marks.
 The CLI path (`run.py evaluate` / `compare`) still works for one bidder without the UI.
 

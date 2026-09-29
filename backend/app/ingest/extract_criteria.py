@@ -1,16 +1,19 @@
 """EXTRACT_CRITERIA: read the RFP and turn its eligibility/evaluation clauses into
-criterion rows (by meaning, wherever they sit), plus a draft criteria block for
-the human to check and approve.
+criterion rows (by meaning, wherever they sit), plus the general conditions that
+apply to several criteria, and a draft criteria block for the human to approve.
 """
 from decimal import Decimal, InvalidOperation
 
 from pydantic import BaseModel, Field
 
+from app.criteria import scoring
+from app.evaluate.count_bands import describe
 from app.llm.client import LlmClient
 from app.llm.prompts import fill, load
-from app.schemas.records import Page
+from app.schemas.records import CountBand, Page
 
-CHUNK_PAGES = 40
+CHUNK_PAGES = 100   # whole RFP in one call up to 100 pages (docs/pipeline.md), so
+                    # a form at the back is seen next to the criterion it proves
 SYSTEM = "You extract evaluation criteria from government RFPs. Return valid JSON only."
 
 
@@ -25,22 +28,48 @@ class ExtractedCriterion(BaseModel):
     max_items: int | None = None
     kind: str | None = None
     item_marks: list[str] = Field(default_factory=list)
+    count_bands: list[dict] = Field(default_factory=list)   # {"min", "max", "marks"}
     scored_by: str = "LLM"
+    rfp_page: int | None = None
+
+
+class GeneralCondition(BaseModel):
+    text: str
     rfp_page: int | None = None
 
 
 class Extracted(BaseModel):
     criteria: list[ExtractedCriterion]
+    general_conditions: list[GeneralCondition] = Field(default_factory=list)
 
 
-def extract(pages: list[Page], llm: LlmClient) -> list[ExtractedCriterion]:
-    found: dict[str, ExtractedCriterion] = {}
+def extract(pages: list[Page], llm: LlmClient) -> Extracted:
+    rows: list[ExtractedCriterion] = []
+    general: dict[str, GeneralCondition] = {}
     for start in range(0, len(pages), CHUNK_PAGES):
         chunk = pages[start:start + CHUNK_PAGES]
         text = "\n\n".join(f"[PDF p. {p.pdf_page_no}]\n{p.full_text()}" for p in chunk)
-        for c in llm.ask_json(SYSTEM, fill(load("criteria"), pages=text), Extracted).criteria:
-            found.setdefault(c.code, c)
-    return list(found.values())
+        answer = llm.ask_json(SYSTEM, fill(load("criteria"), pages=text), Extracted)
+        rows += answer.criteria
+        for g in answer.general_conditions:
+            general.setdefault(" ".join(g.text.split()), g)
+    return Extracted(criteria=merge(rows), general_conditions=list(general.values()))
+
+
+def merge(rows: list[ExtractedCriterion]) -> list[ExtractedCriterion]:
+    """One row per code across chunks. Eligibility rows are renumbered E.1, E.2 ... in
+    the order found, so two chunks that both start at E.1 do not overwrite each other;
+    the same eligibility title found twice is kept once."""
+    scored: dict[str, ExtractedCriterion] = {}
+    eligibility: dict[str, ExtractedCriterion] = {}
+    for c in rows:
+        if c.stage == "ELIGIBILITY":
+            eligibility.setdefault(" ".join(c.title.lower().split()), c)
+        else:
+            scored.setdefault(c.code, c)
+    for n, c in enumerate(eligibility.values(), start=1):
+        c.code, c.parent = f"E.{n}", None
+    return [*eligibility.values(), *scored.values()]
 
 
 def decimal_or_none(value: str | None) -> Decimal | None:
@@ -50,15 +79,27 @@ def decimal_or_none(value: str | None) -> Decimal | None:
         return None
 
 
-def build_block(rows: list[dict]) -> str:
-    """Draft rule text for the prompt, from the criterion rows the LLM scores."""
+def build_block(rows: list[dict], general: list[GeneralCondition] | None = None) -> str:
+    """Draft rule text for the prompt: the RFP's general conditions, then every
+    criterion with marks the LLM scores (per project, per CV or on the whole bid).
+
+    Group headings are left out: their marks are only the sum of their sub-criteria.
+    """
+    ways = scoring(rows)
     parts = ["Apply each criterion exactly as the RFP text says. "
              "The plain-words line only explains it."]
+    if general:
+        parts.append("GENERAL CONDITIONS (apply to every criterion below)\n" + "\n".join(
+            f"- \"{g.text}\"" + (f" [RFP p. {g.rfp_page}]" if g.rfp_page else "")
+            for g in general))
     for c in rows:
-        if c["stage"] != "TECHNICAL" or c["scored_by"] != "LLM":
+        if ways.get(c["code"]) not in ("PROJECT", "CV", "BID"):   # AI-scored rows with marks
             continue
         limit = f", max {c['max_items']} items" if c.get("max_items") else ""
         allowed = c.get("allowed") or "as the RFP text says"
+        if c.get("count_bands"):
+            bands = describe([CountBand.model_validate(b) for b in c["count_bands"]])
+            allowed = f"none per item: marks by the number of qualifying items ({bands})"
         parts.append(f"CRITERION {c['code']}  (max {c['max_marks']} marks{limit})\n"
                      f"RFP text: \"{c['rfp_text']}\"\n"
                      f"In plain words: {c['meaning']}\n"

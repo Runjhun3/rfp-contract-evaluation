@@ -10,7 +10,8 @@ SYSTEM = "You label pages of government tender bids. Return valid JSON only."
 
 
 def criteria_list(criteria: list[Criterion]) -> str:
-    return "\n".join(f"{c.code} — {c.meaning}" for c in criteria)
+    return "\n".join(f"{c.code} — {c.meaning}" + (" [whole bid]" if c.kind == "BID" else "")
+                     for c in criteria)
 
 
 def label_pages(pages: list[Page], criteria: list[Criterion], llm: LlmClient) -> list[Page]:
@@ -28,6 +29,7 @@ def label_pages(pages: list[Page], criteria: list[Criterion], llm: LlmClient) ->
             page.criterion_code = label.criterion_code if label.criterion_code in codes else None
             page.map_confidence = label.map_confidence
             page.item_start = label.item_start
+            page.title = label.title
     return pages
 
 

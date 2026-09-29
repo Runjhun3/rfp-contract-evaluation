@@ -8,9 +8,15 @@ def list_projects(cur, page: int) -> list[dict]:
     return all_rows(cur, """
         select t.tender_id::text, t.name, t.gem_bid_no, t.status,
                to_char(t.bid_due_date, 'DD Mon YYYY') as due,
-               (select count(*) from bid_submission s where s.tender_id = t.tender_id) as participants,
-               (select count(*) from evaluation_run r join final_score f using (run_id)
-                 where r.tender_id = t.tender_id and f.needs_review and not f.reviewed) as open_reviews,
+               (select count(*) from bid_submission s where s.tender_id = t.tender_id
+                  and s.included) as participants,
+               (select count(*) from final_score f
+                 join bid_submission s on s.submission_id = f.submission_id
+                 where s.tender_id = t.tender_id and not f.reviewed
+                   and f.run_id = (select x.run_id from run_submission x
+                                   join evaluation_run r using (run_id)
+                                   where x.submission_id = f.submission_id
+                                   order by r.created_at desc limit 1)) as open_reviews,
                to_char(t.created_at, 'DD Mon YYYY') as created
         from tender t order by t.created_at desc limit %s offset %s""",
         (PAGE_SIZE + 1, (page - 1) * PAGE_SIZE))
@@ -54,16 +60,29 @@ def latest_rfp(cur, tender_id: str) -> dict | None:
 
 def criteria(cur, tender_id: str) -> list[dict]:
     return all_rows(cur, """
-        select criterion_id::text, code, stage, kind, title, rfp_text, meaning,
-               trim_scale(max_marks) as max_marks, max_items, scored_by, rfp_page,
+        select criterion_id::text, code, parent_code, stage, kind, title, rfp_text, meaning,
+               trim_scale(max_marks) as max_marks, max_items, scored_by, rfp_page, count_bands,
                array_to_string(array(select trim_scale(m) from unnest(allowed_item_marks) m),
                                ', ') as allowed
         from criterion where tender_id = %s order by stage desc, code""", (tender_id,))
 
 
+def drop_stale_criteria(cur, tender_id: str, codes: list[str]) -> None:
+    """After a re-extraction: remove criteria the RFP no longer yields. A row that a
+    run, bid item or committee mark refers to is kept (history is never deleted)."""
+    cur.execute("""delete from criterion c where c.tender_id = %s and not (c.code = any(%s))
+                     and not exists (select 1 from bid_item i where i.criterion_id = c.criterion_id)
+                     and not exists (select 1 from criterion_score s
+                                     where s.criterion_id = c.criterion_id)
+                     and not exists (select 1 from manual_score m
+                                     where m.criterion_id = c.criterion_id)""",
+                (tender_id, codes))
+
+
 def update_criterion(cur, criterion_id: str, fields: dict) -> None:
     cur.execute("""update criterion set meaning = %s, kind = %s, max_marks = %s, max_items = %s,
-                     allowed_item_marks = %s::numeric[], scored_by = %s where criterion_id = %s""",
+                     allowed_item_marks = %s::numeric[], scored_by = %s
+                   where criterion_id = %s""",
                 (fields["meaning"], fields["kind"] or None, fields["max_marks"],
                  fields["max_items"], fields["allowed"], fields["scored_by"], criterion_id))
 
