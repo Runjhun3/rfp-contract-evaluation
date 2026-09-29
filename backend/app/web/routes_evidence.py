@@ -1,12 +1,12 @@
 """API: one criterion score's evidence, the committee decision, and bid page images."""
-from decimal import Decimal, InvalidOperation
-
 from starlette.responses import Response
 from starlette.routing import Route
 
-from app.db import q_projects, q_results
+from app.db import q_results
 from app.db.connection import transaction
 from app.db.repo_setup import LOCAL_USER_ID
+from app.evidence_view import evidence_view
+from app.review import decide
 from app.web.auth import check_csrf
 from app.web.common import fail, ok
 from app.web.page_image import page_png
@@ -17,48 +17,21 @@ def _db(request):
 
 
 async def evidence_page(request):
-    score_id = str(request.path_params["score_id"])
     with _db(request) as cur:
-        score = q_results.score_detail(cur, score_id)
-        if score is None:
-            return fail("Score not found", 404)
-        items = q_results.items(cur, score["run_id"], score["submission_id"], score["criterion_id"])
-        chosen = request.query_params.get("item") or (items[0]["item_id"] if items else None)
-        item = next((i for i in items if i["item_id"] == chosen), None)
-        checks = q_results.checks(cur, item["item_id"]) if item else []
-        history = q_results.decisions(cur, score_id)
-        project = q_projects.get_project(cur, score["tender_id"])
-    return ok({"score": score, "items": items, "item": item, "checks": checks,
-               "history": history, "project": project})
-
-
-def _decision(body: dict, score: dict) -> tuple[str, Decimal, str] | str:
-    """(action, marks, reason), or an error message for the reviewer."""
-    reason = str(body.get("reason") or "").strip()
-    action = "OVERRIDE" if body.get("action") == "OVERRIDE" else "ACCEPT"
-    try:
-        marks = Decimal(str(body.get("marks"))) if action == "OVERRIDE" else score["checked_marks"]
-    except InvalidOperation:
-        return "Enter the overriding marks as a number."
-    if len(reason) < 10 or not (0 <= marks <= (score["max_marks"] or marks)):
-        return "Give a reason of at least 10 characters and marks within the criterion's maximum."
-    return action, marks, reason
+        view = evidence_view(cur, str(request.path_params["score_id"]),
+                             request.query_params.get("item"),
+                             request.app.state.settings.review_confidence)
+    return ok(view) if view else fail("Score not found", 404)
 
 
 async def record_decision(request):
     check_csrf(request)
-    score_id = str(request.path_params["score_id"])
     body = await request.json()
     with _db(request) as cur:
-        score = q_results.score_detail(cur, score_id)
-    if score is None:
-        return fail("Score not found", 404)
-    decision = _decision(body, score)
-    if isinstance(decision, str):
-        return fail(decision)
-    with _db(request) as cur:
-        q_results.record_decision(cur, score_id, *decision, LOCAL_USER_ID)
-    return ok({"run_id": score["run_id"]}, "Decision recorded", 201)
+        problem = decide(cur, str(request.path_params["score_id"]), body, LOCAL_USER_ID)
+    if problem:
+        return fail(problem, 404 if problem == "Score not found" else 400)
+    return ok(None, "Decision recorded", 201)
 
 
 async def page_image(request):

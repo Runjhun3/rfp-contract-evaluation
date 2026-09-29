@@ -6,6 +6,7 @@ python-dateutil>=2.9
 pillow>=10           # rendering pages for local OCR
 pytest>=8
 psycopg[binary]>=3.1  # Postgres driver
+openpyxl>=3.1        # committee Excel export (docs/architecture.md)
 
 # web API (the React UI is in ../frontend)
 starlette>=0.40

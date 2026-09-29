@@ -24,7 +24,7 @@ export default function App() {
         <Route path="projects/:tenderId/criteria" element={<Criteria />} />
         <Route path="projects/:tenderId/participants" element={<Participants />} />
         <Route path="runs/:runId" element={<RunProgress />} />
-        <Route path="runs/:runId/results" element={<Results />} />
+        <Route path="projects/:tenderId/results" element={<Results />} />
         <Route path="scores/:scoreId" element={<Evidence />} />
         <Route path="*" element={<NotFound />} />
       </Route>

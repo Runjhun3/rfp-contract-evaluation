@@ -73,3 +73,54 @@ def test_llm_client_retries_bad_json_then_caches(tmp_path):
     replay = LlmClient(Settings(_env_file=None, llm_cache_dir=str(tmp_path), llm_mode="replay"))
     with pytest.raises(ReplayMiss):
         replay.complete("s", "never asked")
+
+
+def test_the_same_persons_cv_twice_under_one_criterion_is_scored_once():
+    pages = [_page(1, "CV", "B.2", True, title="Parul Saini, Senior Consultant"),
+             _page(2, "CV"), _page(3, "CV"),
+             _page(4, "CV", "B.2", True, title="Anand Gupta, Senior Consultant"),
+             _page(5, "CV", "B.2", True, title="PARUL  SAINI, Sr. Consultant"),   # 1-page profile
+             _page(6, "CV", "B.1", True, title="Parul Saini, Project Manager"),   # other criterion
+             _page(7, "CV", "B.2", True), _page(8, "CV", "B.2", True)]           # no names
+    items = {i.label: i for i in build_items(pages, KINDS)}
+    assert items["B.2 p.5-5"].duplicate_of == "B.2 p.1-3"
+    assert [label for label, i in items.items() if i.duplicate_of] == ["B.2 p.5-5"]
+
+
+def test_a_cv_keeps_the_position_it_names_after_a_mixed_team_summary():
+    # A team summary over four pages: a cover and a Project Manager page (no single
+    # criterion), then two Senior Consultant pages. The Project Manager's CV must stay
+    # under its own position, not the last summary page's.
+    pages = [_page(1, "CLAIM_SUMMARY", None), _page(2, "CLAIM_SUMMARY", None),
+             _page(3, "CLAIM_SUMMARY", "B.2"), _page(4, "CLAIM_SUMMARY", "B.2"),
+             _page(5, "CV", "B.1", True, title="Asha Rao, Project Manager"), _page(6, "CV"),
+             _page(7, "CV", "B.2", True, title="Ravi Jain, Senior Consultant")]
+    assert [i.label for i in build_items(pages, KINDS)] == ["B.1 p.5-6", "B.2 p.7-7"]
+
+
+def test_a_multi_page_summary_for_one_criterion_still_opens_a_section():
+    pages = [_page(1, "CLAIM_SUMMARY", "A.1"), _page(2, "CLAIM_SUMMARY", "A.1"),
+             _page(3, "PROJECT_HEADER", "A.3", True)]
+    assert [i.label for i in build_items(pages, KINDS)] == ["A.1 p.3-3"]
+
+
+def test_a_criterion_with_nothing_found_says_where_its_kind_went():
+    from app.pipeline import nothing_found
+    from app.schemas.records import Criterion, Item
+    crit = Criterion(code="B.1", title="t", meaning="m", kind="CV", max_marks=8,
+                     allowed_item_marks=[])
+    items = [Item(label="B.2 p.5-6", title="Asha Rao, Project Manager", kind="CV",
+                  criterion_code="B.2", map_confidence=0.9, from_page=5, to_page=6)]
+    assert nothing_found(crit, items) == (
+        "No CV was assigned to B.1, so it scores 0. CVs found in the bid: "
+        "p.5-6 Asha Rao, Project Manager (assigned to B.2).")
+    assert nothing_found(crit, []).endswith("No CV pages were found in the bid.")
+
+
+def test_a_whole_bid_criterion_gets_one_item_of_all_its_evidence_pages():
+    kinds = {**KINDS, "F.1": "BID", "F.2": "BID"}
+    pages = [_page(1, "CLAIM_SUMMARY", "A.1"), _page(2, "PROJECT_HEADER", "A.1", True),
+             _page(3, "CA_CERT", "F.1"), _page(4, "WORK_ORDER"), _page(9, "OTHER", "F.1")]
+    bid = [i for i in build_items(pages, kinds) if i.kind == "BID"]
+    assert [(i.label, i.pages, i.page_list()) for i in bid] == [
+        ("F.1 p.3-9", [3, 9], [3, 9])]                     # F.2 has no evidence: no item

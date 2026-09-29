@@ -45,7 +45,7 @@ export default function CriteriaTable({ rows, saved, onChange }: Props) {
             return (
               <GroupHead key={c.criterion_id} group={c} span={SPAN} open={!closed.has(c.code)}
                 edited={groupEdited(c.code, rows, saved)} scoredBy={groupScoredBy(c.code, rows)}
-                onToggle={() => toggle(c.code)} onCap={(v) => edit(i, "group_cap")({ target: { value: v } })}
+                onToggle={() => toggle(c.code)}
                 onScoredBy={(v) => onChange(setGroupScoredBy(c.code, v, rows))} />
             );
           }

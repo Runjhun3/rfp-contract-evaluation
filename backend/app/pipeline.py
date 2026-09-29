@@ -45,7 +45,7 @@ def run(bid_pdf: Path, ctx: RunContext, criteria: list[Criterion], block: str,
                    lambda: build_items(pages, {c.code: c.kind for c in criteria}))
     by_no = {p.pdf_page_no: p for p in pages}
     results = _item_results(items, by_no, ctx, system_prompt(ctx, block), bid_pdf, run_dir,
-                            llm, stage)
+                            llm, stage, {c.code: c for c in criteria})
     stage("CHECKS", len(items), len(items))
     checks = cached(run_dir / "evidence_checks.json", list[EvidenceCheck],
                     lambda: [c for i in items if i.label in results
@@ -70,14 +70,18 @@ def _run_meta(bid_pdf: Path, ctx: RunContext, criteria: list[Criterion], block: 
 
 
 def _item_results(items: list[Item], pages: dict[int, Page], ctx: RunContext, system: str,
-                  bid_pdf: Path, run_dir: Path, llm: LlmClient,
-                  stage: Stage) -> dict[str, ItemResult]:
+                  bid_pdf: Path, run_dir: Path, llm: LlmClient, stage: Stage,
+                  by_code: dict[str, Criterion]) -> dict[str, ItemResult]:
     results = {}
     for done, item in enumerate(items):
         stage("ITEMS", done, len(items))
+        if item.duplicate_of:
+            continue                 # another copy of the same CV is scored instead
         results[item.label] = cached(
             run_dir / "items" / f"{safe_name(item.label)}.json", ItemResult,
-            lambda item=item: evaluate_item(item, pages, ctx, system, llm, bid_pdf))
+            lambda item=item, c=by_code.get(item.criterion_code): evaluate_item(
+                item, pages, ctx, system, llm, bid_pdf, c.rfp_text if c else "",
+                c.count_bands if c else None))
     return results
 
 
@@ -91,7 +95,25 @@ def _score(criterion: Criterion, items: list[Item], results: dict[str, ItemResul
     arith = check_criterion(criterion, result, mine)
     reasons = review_reasons(result, arith, {i.label: i for i in items}, mine, checks,
                              copies, pages, settings)
+    duplicates = [f"{i.label} not scored: same CV as {i.duplicate_of}" for i in items
+                  if i.criterion_code == criterion.code and i.duplicate_of]
+    summary = result.summary if mine else nothing_found(criterion, items)
     return CriterionScore(code=criterion.code, llm_marks=result.marks,
                           checked_marks=arith.checked_marks, arithmetic_ok=arith.ok,
                           needs_review=bool(reasons), review_reasons=reasons,
-                          summary="; ".join([result.summary, *arith.issues]))
+                          summary="; ".join([summary, *arith.issues, *duplicates]))
+
+
+def nothing_found(criterion: Criterion, items: list[Item]) -> str:
+    """Why a criterion scored 0 with no items: what of that kind the bid does contain,
+    and where it went, so the committee can check the mapping (flag NO_ITEMS_FOUND)."""
+    if criterion.kind == "BID":
+        return (f"No page in the bid was found as evidence for {criterion.code}, so it scores 0. "
+                "Check the bid and decide the criterion.")
+    word = "CV" if criterion.kind == "CV" else "project"
+    elsewhere = [f"p.{i.from_page}-{i.to_page} {i.title or i.label} (assigned to "
+                 f"{i.criterion_code})" for i in items
+                 if i.kind == criterion.kind and i.criterion_code != criterion.code]
+    found = (f" {word[0].upper()}{word[1:]}s found in the bid: {'; '.join(elsewhere)}."
+             if elsewhere else f" No {word} pages were found in the bid.")
+    return f"No {word} was assigned to {criterion.code}, so it scores 0.{found}"

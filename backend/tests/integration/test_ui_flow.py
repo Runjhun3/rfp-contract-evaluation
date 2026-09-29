@@ -122,20 +122,25 @@ def test_full_flow(tmp_path):
     ok(data(c.get(run))["rows"][0]["label"] == "Waiting to start", "progress page")
     ok(run_once(s, llm), "worker: evaluate Deloitte")
     ok(data(c.get(run))["run"]["status"] == "DONE", "run DONE")
-    res = data(c.get(run + "/results"))
+    res = data(c.get(base + "/results"))
     ok(res["rows"][0]["name"] == "Deloitte" and any(x["code"] == "A.1" and x["max_marks"] == "16" for x in res["codes"])
-       and res["presentation"]["max_marks"] == "35", "results matrix")
+       and res["committee"][0]["max_marks"] == "35", "results matrix")
     score = res["rows"][0]["cells"]["A.1"]["score_id"]
     ev = data(c.get(f"/api/v1/scores/{score}"))
-    ok(any("Credential-1" in (i["title"] or i["label"]) for i in ev["items"]), "evidence page")
+    listed = [i for g in ev["groups"] for i in g["items"]]
+    ok(any("Credential-1" in i["title"] for i in listed), "evidence page")
     img = c.get(f"/api/v1/submissions/{sub}/pages/143.png"); ok(img.status_code == 200 and img.content[:4] == b"\x89PNG", "page image")
-    r = c.post(f"/api/v1/scores/{score}/decision", json={"action": "OVERRIDE", "marks": "12", "reason": "short"})
+    first = listed[0]["item_id"]
+    r = c.post(f"/api/v1/scores/{score}/decision", json={"item_id": first, "action": "OVERRIDE", "marks": "0", "reason": "short"})
     ok(r.status_code == 400 and "at least 10" in r.json()["message"], "short reason refused")
-    r = c.post(f"/api/v1/scores/{score}/decision", json={"action": "OVERRIDE", "marks": "12", "reason": "Credentials 7-11 fail duration, India-only and award-date rules"})
-    ok(r.status_code == 201, "decision recorded")
-    r = c.post(run + "/presentation", json={"marks": {sub: "32"}}); ok(r.status_code == 200, "presentation saved")
-    res = data(c.get(run + "/results")); row = res["rows"][0]
-    ok(row["cells"]["A.1"]["marks"] == "12" and row["cells"]["A.1"]["reviewed"] and row["presentation"] == "32",
-       "results show decision + presentation")
-    ok(data(c.get(f"/api/v1/scores/{score}"))["history"][0]["full_name"] == "Local user",
-       "decision recorded against the built-in local user")
+    counted = [i["item_id"] for g in ev["groups"] if g["key"] == "counted" for i in g["items"]]
+    for item_id in counted:                          # accepting needs no reason
+        r = c.post(f"/api/v1/scores/{score}/decision", json={"item_id": item_id, "action": "ACCEPT"})
+        ok(r.status_code == 201, "item decision recorded")
+    pres = res["committee"][0]["criterion_id"]
+    r = c.post(base + "/committee-marks", json={"marks": {pres: {sub: "32"}}}); ok(r.status_code == 200, "committee marks saved")
+    res = data(c.get(base + "/results")); row = res["rows"][0]
+    ok(row["cells"]["A.1"]["reviewed"] and row["manual"][pres] == "32",
+       "results show the approved criterion + committee marks")
+    ev = data(c.get(f"/api/v1/scores/{score}?item={counted[0]}"))
+    ok(ev["item"]["decision"]["action"] == "ACCEPT", "item decision shown on the evidence page")

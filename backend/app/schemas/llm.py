@@ -50,6 +50,15 @@ class Condition(BaseModel):
     met: bool
 
 
+class HardFail(BaseModel):
+    """Why an item is not eligible. Only these kinds are hard fails; a doubt about a
+    category, type or relevance is a judgement call for the committee."""
+    kind: str                       # missing_document | failed_test | rfp_exclusion
+    detail: str = ""
+    fact: str | None = None         # failed_test: the fact of the test in conditions
+    rfp_quote: str | None = None    # rfp_exclusion: the RFP's words that exclude the item
+
+
 class Recheck(BaseModel):
     """Set by Python, never by the LLM: the first answer, when a recomputed test
     disagreed and the item was sent back once."""
@@ -72,6 +81,7 @@ class ItemResult(BaseModel):
     cv: CvFacts | None = None
     relies_on: list[str] = Field(default_factory=list)
     conditions: list[Condition] = Field(default_factory=list)
+    hard_fail: HardFail | None = None
     eligible: bool
     marks: Decimal
     reason: str

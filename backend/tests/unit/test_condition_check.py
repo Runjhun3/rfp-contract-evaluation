@@ -3,13 +3,15 @@ from datetime import date
 from decimal import Decimal
 
 from app.config import Settings
-from app.evaluate.condition_check import condition_checks, findings
+from app.evaluate.condition_check import condition_checks
+from app.evaluate.proof_check import proof_check
+from app.evaluate.rejection_check import REJECTION, answer_checks, findings
 from app.evaluate.evidence_check import check_item
 from app.evaluate.flags import review_reasons
 from app.evaluate.item_eval import evaluate_item
 from app.llm.client import LlmClient
 from app.schemas.llm import (Condition, CriterionItem, CriterionResult, CvFacts, Fact,
-                             ItemResult, Job, Recheck)
+                             HardFail, ItemResult, Job, Recheck)
 from app.schemas.records import ArithmeticCheck, Item, Page, RunContext
 
 AS_OF = date(2026, 5, 7)
@@ -122,3 +124,71 @@ def test_a_cv_without_dated_rows_is_not_recomputed_as_zero_years():
     r.cv = CvFacts(employment=[Job(organisation="Org", quote="row")], experience_years=Decimal(7))
     checks = condition_checks(r, AS_OF)
     assert checks[0].value_matches is None and findings(checks) == []
+
+
+def rejected(hard_fail, *conds, **facts):
+    r = result(*conds, **facts)
+    r.hard_fail = HardFail.model_validate(hard_fail) if hard_fail else None
+    return r
+
+
+def test_a_rejection_is_backed_only_by_a_hard_fail():
+    fail = {"kind": "failed_test", "detail": "value too low", "fact": "value_inr"}
+    cases = [
+        (rejected(None), False),                                          # no reason at all
+        (rejected({"kind": "judgement", "detail": "client is not a sports body"}), False),
+        (rejected({"kind": "missing_document", "detail": "no completion certificate"}), True),
+        (rejected({"kind": "rfp_exclusion", "detail": "other position"}), False),   # no quote
+        (rejected({"kind": "rfp_exclusion", "detail": "other position",
+                   "rfp_quote": "CVs of one Project Manager"}), True),
+        (rejected(fail, ("value_inr", ">", "50000000", False), value_inr="40000000"), True),
+        (rejected(fail, ("value_inr", ">", "50000000", False), value_inr="58900000"), False),
+        (rejected(fail, ("value_inr", ">", "50000000", True), value_inr="58900000"), False),
+    ]
+    for r, backed in cases:
+        row = [c for c in answer_checks(r, AS_OF) if c.fact == REJECTION][0]
+        assert (row.value_matches is None) == backed, (r.hard_fail, row.note)
+        assert (row.note in findings([row])) != backed
+
+
+def test_an_unbacked_rejection_is_sent_back_once(tmp_path):
+    first = answer(False, "0", True)          # every test met, rejected on a category doubt
+    llm, calls = fake_llm(tmp_path, [first, answer(True, "2.5", True)])
+    final = evaluate_item(ITEM, PAGES, CTX, "system", llm)
+    assert len(calls) == 2 and "not eligible without a hard fail" in calls[1]
+    assert final.eligible and final.recheck.findings[0].startswith("not eligible without")
+
+
+def test_flags_for_an_unbacked_rejection_and_a_duplicate_cv():
+    r = rejected({"kind": "judgement", "detail": "client category"})
+    copy = ITEM.model_copy(update={"label": "A.3 p.3-3", "duplicate_of": ITEM.label})
+    row = CriterionItem(label=ITEM.label, order=1, eligible=False, counted=False,
+                        marks=Decimal(0), reason="r")
+    reasons = review_reasons(
+        CriterionResult(code="A.3", items=[row], counted_items=0, marks=Decimal(0), summary=""),
+        ArithmeticCheck(code="A.3", llm_marks=Decimal(0), checked_marks=Decimal(0), ok=True,
+                        issues=[]),
+        {ITEM.label: ITEM, copy.label: copy}, {ITEM.label: r}, answer_checks(r, AS_OF), [],
+        PAGES, Settings(_env_file=None))
+    assert {"UNSUPPORTED_REJECTION", "DUPLICATE_CV"} <= set(reasons)
+
+
+def test_every_result_must_explain_itself_with_a_reason_and_quotes():
+    bare = result(eligible=True, marks="2")                      # no facts, reason "r"
+    assert proof_check(bare).value_matches is False
+    assert "no quoted evidence" in proof_check(bare).note
+    quoted = result(eligible=True, marks="2", value_inr="58900000")
+    assert proof_check(quoted).value_matches is None
+    silent = result(eligible=True, marks="2", value_inr="58900000")
+    silent.reason = "  "
+    assert "no reason was given" in proof_check(silent).note
+    rejected = result(eligible=False, marks="0")                 # nothing to quote
+    assert proof_check(rejected).value_matches is None
+
+
+def test_a_criterion_with_no_items_is_flagged_for_the_committee():
+    reasons = review_reasons(
+        CriterionResult(code="B.1", items=[], counted_items=0, marks=Decimal(0), summary=""),
+        ArithmeticCheck(code="B.1", llm_marks=Decimal(0), checked_marks=Decimal(0), ok=True,
+                        issues=[]), {}, {}, [], [], PAGES, Settings(_env_file=None))
+    assert reasons == ["NO_ITEMS_FOUND"]

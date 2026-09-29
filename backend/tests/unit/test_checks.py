@@ -89,3 +89,12 @@ def test_evidence_value_that_is_not_a_rupee_number_fails_instead_of_crashing():
     checks = check_item(_result(value="Approx USD 4 million"), _item(), PAGES, SETTINGS, AS_OF)
     bad = [c for c in checks if c.fact == "value_inr"][0]
     assert not bad.passed() and "unreadable value" in bad.parsed_value
+
+
+def test_zero_is_always_an_allowed_mark_for_a_counted_item():
+    items = {"A.2 p.10-12": _result(marks="0")}
+    row = CriterionItem(label="A.2 p.10-12", order=1, eligible=True, counted=True,
+                        marks=Decimal(0), reason="r")
+    result = CriterionResult(code="A.2", items=[row], counted_items=1, marks=Decimal(0),
+                             summary="s")
+    assert not any("not an allowed mark" in i for i in check_criterion(A2, result, items).issues)

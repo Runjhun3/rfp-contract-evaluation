@@ -57,8 +57,9 @@ async def run_page(request):
             return fail("Run not found", 404)
         project = q_projects.get_project(cur, run["tender_id"])
         rows = _rows(cur, run_id)
+        ready = q_runs.has_results(cur, run["tender_id"])
     return ok({"project": project, "run": run, "rows": rows,
-               "steps": stepper(project, "evaluate", run_id)})
+               "steps": stepper(project, "evaluate", run_id, results_ready=ready)})
 
 
 routes = [

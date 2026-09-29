@@ -3,6 +3,95 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-040 Item overrides: a number up to the per-item maximum (2026-09-29)
+Supersedes the list part of D-037. The committee types the overriding marks again;
+any mark from 0 up to the most one item can earn is accepted (the highest per-item
+mark the criterion lists; the criterion's max when it lists none). Under a criterion
+scored by the number of qualifying items an item override is 1 (counts) or 0.
+
+## D-039 Criteria scored by the number of qualifying items (2026-09-29)
+A criterion such as "up to 3 projects - 5 marks, 4-6 - 7, 7 or more - 10" was scored
+as marks per project and added up (2 each, summed, capped), which is right only by
+luck. Extraction (v3) now records such bands (`criterion.count_bands`, migration
+009); each item is judged qualifies (1) or not (0); Python counts the qualifying
+items and applies the band, in the evaluation and in `final_score` after committee
+decisions. The criterion LLM call is skipped for these criteria (nothing to choose).
+
+## D-038 Bounded values are ranges; 0 is always an allowed item mark (2026-09-29)
+A CA certificate stated turnover as "more than INR 3,000 crore"; the value could not
+be parsed, so every band test was "could not recompute". A value stated as a bound
+(words or symbols) is now read as a range and a test is settled only when certain
+("more than 3000" is above 750; above 5000 stays open). Per-item mark lists from
+value bands never include 0, which raised a false ARITHMETIC flag for a counted
+item scored 0; 0 is now always allowed.
+
+## D-037 Item overrides use the criterion's per-item marks; items grouped by final state (2026-09-29)
+An override of 6 was accepted for one project of a 2-marks-per-project criterion
+(only the criterion's 16 was checked), and a project overridden into the count
+still showed under "Not counted" (items were grouped by the AI's outcome). An item
+override must now be one of the marks one item can earn (0 or the criterion's
+listed per-item marks; 0 to the criterion's max when none are listed), chosen from
+a list in the form. The `final_item` view (migration 008) holds each item's final
+marks and whether it counts; `final_score` totals from it and the evidence screen
+groups by it, so both always agree.
+
+## D-036 A criterion with marks is always scored and shown (2026-09-29)
+On a second RFP, A.1 (average annual turnover, 5 marks) was never evaluated because
+only criteria scored per project or per CV were, and results built their columns
+from the scores that existed, so A.1 vanished and the maximum read 60 instead of 65.
+The presentation (C, 35) was extracted as TECHNICAL, and results looked for stage
+PRESENTATION, so it had no column to enter marks. Now every criterion with marks
+is scored: per project/CV, once on the whole bid (kind BID: the labeller tags its
+evidence pages, one item, the same checks and approval), or by the committee
+(entry column per criterion, chosen by "Scored by", not stage). Results and export
+take columns and maximums from the criteria.
+
+## D-035 Every mark needs the committee's approval (2026-09-29)
+A mark the AI was confident about (no review flag) used to count as settled. Now
+every criterion score stays highlighted, counts as open and blocks the export until
+the committee has decided every counted item (or the whole criterion, when it has
+no items). Review flags still mark the ones to look at first (the dot); they no
+longer decide what needs approval. Open counts use each participant's latest
+evaluation only.
+
+## D-034 The committee decides each item; accepting needs no reason (2026-09-29)
+One decision per criterion hid which project the committee disagreed with and
+forced a 10-character reason even to accept the AI's marks. Decisions are now per
+item (`review_decision.item_id`, which the schema already had). The final marks of a
+criterion are computed in the `final_score` view from the item decisions (best
+max-items of the item marks, capped), so results, the project list and the export
+agree. Accepting needs no reason; overriding still does. Criterion-level decisions
+made before this keep their effect until an item on that criterion is decided.
+
+## D-033 Group cap removed (2026-09-29)
+Supersedes the group-cap part of D-030. The optional cap on a group heading
+(`criterion.group_cap`, CAP_APPLIED, the ✎ editor, the cap columns in results and
+the "capped" note in the export) is removed at the owner's request; migration 005
+drops the column. A group heading's total is again the plain sum of its
+sub-criteria everywhere: criteria page, results, export. The rest of D-030 (group
+headings with a computed total checked against the RFP, one "Scored by" per group,
+collapse/expand, the items × top mark warning) stays.
+
+## D-032 A CV's own position decides; no zero without an explanation (2026-09-29)
+GT Bharat's Project Manager CV scored 0: its team summary ran over four pages
+(cover, Project Manager, Senior Consultant, Senior Consultant) and the last page's
+label opened a Senior Consultant section, which overrode the CV's own correct label.
+A CV now keeps the position it names; a multi-page summary opens a section only if
+all its pages agree. A criterion with nothing assigned is flagged NO_ITEMS_FOUND and
+says where items of its kind went. Every item result must carry a reason and, when
+it earns marks, quoted evidence; a missing one joins the single re-check and is
+flagged NO_PROOF if still missing.
+
+## D-031 A rejection needs a hard fail; one CV per person (2026-09-29)
+PwC's re-run still rejected two projects on a category/type doubt ("transaction
+advisory, not a PMU"; "a CMO society, not a sports department") although every
+numeric test passed; the prompt rule alone did not hold. The LLM now names a
+hard fail for every rejection (missing document, failed test from its own
+conditions, or a quoted RFP exclusion); Python checks the structure, not the
+rule, and an unbacked rejection joins the same single re-check. PwC also had
+one-page profiles of the same four people after their full CVs; a CV is now
+matched by the labelled person's name within a criterion and scored once.
+
 ## D-030 Group headings, group cap and CAP_APPLIED (2026-09-29)
 Group rows (A, B) showed as editable criteria and made the criteria page hard
 to check. They are now full-width headings with no inputs of their own: a

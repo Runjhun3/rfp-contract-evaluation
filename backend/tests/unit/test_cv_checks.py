@@ -29,19 +29,24 @@ def cv_result(jobs, used="10", scores=("4", "4"), marks="8"):
                       marks=Decimal(marks), reason="r", confidence=0.9)
 
 
-def test_rows_are_added_with_overlaps_counted_once_and_present_as_bid_date():
+def test_rows_count_both_end_months_with_overlaps_once_and_present_as_bid_date():
     jobs = [job("2012-03", "2013-05"), job("01/2021", "11/2022"),
             job("2022-01", "2022-06"),            # inside the job above: adds nothing
             job("2025-01", "present")]
-    assert total_months(jobs, AS_OF) == (14 + 22 + 16, 0)
+    assert total_months(jobs, AS_OF) == (15 + 23 + 17, 0)
 
 
 def test_unreadable_rows_are_counted_not_guessed():
-    assert total_months([job("2019", "2020-01"), job("2020-01", "2021-01")], AS_OF) == (12, 1)
+    assert total_months([job("2019", "2020-01"), job("2020-01", "2021-01")], AS_OF) == (13, 1)
+
+
+def test_back_to_back_jobs_lose_no_month():
+    jobs = [job("2017-06", "2018-12"), job("2020-12", "2023-11"), job("2023-12", "2026-05")]
+    assert total_months(jobs, AS_OF) == (19 + 36 + 30, 0)      # 85 months: over 7 years
 
 
 def test_years_that_disagree_with_the_rows_fail_the_check():
-    jobs = [job("2012-01", "2022-07")]                     # 10.5 years
+    jobs = [job("2012-01", "2022-06")]                     # 10.5 years
     assert experience_check(cv_result(jobs, used="10"), CV_ITEM, AS_OF).passed()
     bad = experience_check(cv_result(jobs, used="5"), CV_ITEM, AS_OF)
     assert not bad.passed() and bad.parsed_value == "10.5" and "used 5" in bad.note
@@ -55,7 +60,8 @@ def test_each_employment_row_quote_is_checked_on_its_page():
     result = cv_result(jobs, used="4")
     result.relies_on = ["employment", "experience_years"]   # checked by rows + total, not quotes
     checks = {c.fact: c for c in check_item(result, CV_ITEM, pages, SETTINGS, AS_OF)}
-    assert set(checks) == {"employment_row_1", "employment_row_2", "experience_years"}
+    assert set(checks) == {"employment_row_1", "employment_row_2", "experience_years",
+                           "reason and proof"}
     assert checks["employment_row_1"].passed() and not checks["employment_row_2"].passed()
     assert checks["experience_years"].passed()
 

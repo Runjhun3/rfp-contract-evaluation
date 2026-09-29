@@ -1,9 +1,7 @@
 """API: the criteria read from the RFP, their rule text, and approval."""
-from decimal import Decimal, InvalidOperation
-
 from starlette.routing import Route
 
-from app.criteria import group_codes, missing_max_marks, review_view
+from app.criteria import missing_max_marks, review_view
 from app.db import q_projects
 from app.db.connection import transaction
 from app.db.repo_setup import LOCAL_USER_ID
@@ -11,8 +9,7 @@ from app.web.auth import check_csrf
 from app.web.common import fail, ok
 from app.web.routes_projects import project_head
 
-EDITABLE = ("meaning", "kind", "max_marks", "max_items", "allowed", "scored_by", "group_cap")
-BAD_CAP = "Group cap must be a number above 0 and below 10000, or blank."
+EDITABLE = ("meaning", "kind", "max_marks", "max_items", "allowed", "scored_by")
 
 
 def _db(request):
@@ -30,27 +27,12 @@ async def criteria_page(request):
     return ok(head)
 
 
-def _cap(value) -> Decimal | None:
-    """A group cap from the form: blank means no cap. Raises ValueError if invalid."""
-    text = str(value if value is not None else "").strip()
-    if not text:
-        return None
-    try:
-        cap = Decimal(text)
-        if cap.is_finite() and Decimal(0) < cap < Decimal(10000):
-            return cap
-    except InvalidOperation:
-        pass
-    raise ValueError(BAD_CAP)
-
-
-def _fields(sent: dict, current: dict, is_group: bool) -> dict:
+def _fields(sent: dict, current: dict) -> dict:
     values = {k: sent.get(k, current[k]) for k in EDITABLE}
     return {"meaning": values["meaning"], "kind": values["kind"] or "",
             "max_marks": values["max_marks"] or None, "max_items": values["max_items"] or None,
             "allowed": [m.strip() for m in str(values["allowed"] or "").split(",") if m.strip()],
-            "scored_by": values["scored_by"],
-            "group_cap": _cap(values["group_cap"]) if is_group else None}
+            "scored_by": values["scored_by"]}
 
 
 async def save_criteria(request):
@@ -59,15 +41,9 @@ async def save_criteria(request):
     body = await request.json()
     sent = {str(c.get("criterion_id")): c for c in body.get("criteria", [])}
     with _db(request) as cur:
-        rows = q_projects.criteria(cur, tender_id)
-        groups = group_codes(rows)
-        try:
-            updates = [(r["criterion_id"], _fields(sent.get(r["criterion_id"], {}), r,
-                                                   r["code"] in groups)) for r in rows]
-        except ValueError as err:
-            return fail(str(err))
-        for cid, fields in updates:
-            q_projects.update_criterion(cur, cid, fields)
+        for current in q_projects.criteria(cur, tender_id):
+            cid = current["criterion_id"]
+            q_projects.update_criterion(cur, cid, _fields(sent.get(cid, {}), current))
         q_projects.save_draft_block(cur, tender_id, str(body.get("block") or ""))
     return ok(None, "Criteria saved")
 

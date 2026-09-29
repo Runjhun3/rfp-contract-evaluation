@@ -4,7 +4,8 @@ The LLM names the test in the RFP's own terms (fact, test, threshold); this modu
 knows no rule, only how to compare numbers and dates. The value tested is:
   - duration_months: recomputed from the start_on / end_on facts,
   - experience_years (CV): recomputed from the employment rows (cv_check.py),
-  - any other fact: the value the LLM extracted (its quote is verified separately).
+  - any other fact: the value the LLM extracted (its quote is verified separately);
+    a value stated only as a bound ("more than X") is read as a range (bounds.py).
 A test that cannot be recomputed is recorded as such, never guessed.
 """
 import operator
@@ -13,6 +14,7 @@ from decimal import Decimal, InvalidOperation
 
 from dateutil.relativedelta import relativedelta
 
+from app.evaluate.bounds import Range, parse_range, passing_range, settle
 from app.evaluate.cv_check import total_months
 from app.schemas.llm import Condition, ItemResult
 from app.schemas.records import EvidenceCheck
@@ -26,16 +28,13 @@ def condition_checks(result: ItemResult, as_of: date) -> list[EvidenceCheck]:
     return [_check(result, c, as_of) for c in result.conditions]
 
 
-def findings(checks: list[EvidenceCheck]) -> list[str]:
-    """One line per test the LLM got wrong, for the re-check and the record."""
-    return [c.note for c in checks if c.fact.startswith(PREFIX) and c.value_matches is False]
-
-
 def _check(result: ItemResult, cond: Condition, as_of: date) -> EvidenceCheck:
     name = f"{PREFIX}{cond.fact} {cond.test} {cond.threshold}"
     base = {"label": result.label, "fact": name, "quote_found": True}
-    value, threshold = _value(result, cond.fact, as_of), _parse(cond.threshold)
+    value, threshold = _value(result, cond.fact, as_of), parse_value(cond.threshold)
     compare = TESTS.get(cond.test.strip())
+    if isinstance(value, tuple) and isinstance(threshold, Decimal):   # a stated bound
+        return _check_range(base, cond, value, threshold)
     if None in (value, threshold, compare) or type(value) is not type(threshold):
         return EvidenceCheck(**base, note=f"could not recompute {cond.fact} {cond.test} "
                                           f"{cond.threshold}; the evaluation said "
@@ -47,10 +46,26 @@ def _check(result: ItemResult, cond: Condition, as_of: date) -> EvidenceCheck:
                          note=note)
 
 
-def _value(result: ItemResult, fact: str, as_of: date) -> Decimal | date | None:
+def _check_range(base: dict, cond: Condition, value: Range, threshold: Decimal) -> EvidenceCheck:
+    """A value the document states only as a bound ("more than X"): the test is settled
+    when the whole range falls on one side of the threshold, otherwise not guessed."""
+    shown = f"{'more than' if value[1] else 'at least'} {value[0]}" if value[0] is not None \
+        else f"{'less than' if value[3] else 'at most'} {value[2]}"
+    passing = passing_range(cond.test, threshold)
+    met = settle(value, passing) if passing else None
+    if met is None:
+        return EvidenceCheck(**base, parsed_value=shown,
+                             note=f"{cond.fact} is {shown}: {cond.test} {cond.threshold} cannot "
+                                  f"be settled from a bound; the evaluation said {_word(cond.met)}")
+    note = (f"{cond.fact} is {shown}: {cond.test} {cond.threshold} is {_word(met)}"
+            + ("" if met == cond.met else f", the evaluation said {_word(cond.met)}"))
+    return EvidenceCheck(**base, parsed_value=shown, value_matches=met == cond.met, note=note)
+
+
+def _value(result: ItemResult, fact: str, as_of: date) -> Decimal | date | Range | None:
     facts = result.all_facts()
     if fact == "duration_months":
-        start, end = (_parse(f.value) if (f := facts.get(n)) else None
+        start, end = (parse_value(f.value) if (f := facts.get(n)) else None
                       for n in ("start_on", "end_on"))
         if isinstance(start, date) and isinstance(end, date) and end >= start:
             span = relativedelta(end + timedelta(days=1), start)   # both days inclusive
@@ -63,10 +78,12 @@ def _value(result: ItemResult, fact: str, as_of: date) -> Decimal | date | None:
             return None                  # no dated rows: cannot recompute, never 0
         return (Decimal(months) / 12).quantize(Decimal("0.1"))
     found = facts.get(fact)
-    return _parse(found.value) if found else None
+    if not found:
+        return None
+    return parse_value(found.value) or parse_range(found.value)
 
 
-def _parse(text: str | None) -> Decimal | date | None:
+def parse_value(text: str | None) -> Decimal | date | None:
     value = str(text or "").strip().replace(",", "")
     try:
         return date.fromisoformat(value[:10]) if len(value) >= 10 and value[4] == "-" \

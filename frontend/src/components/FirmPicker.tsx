@@ -50,7 +50,12 @@ export default function FirmPicker({ data, search, busy, onSave, onAdd }: Props)
             <input type="checkbox" checked={chosen.has(f.bidder_id)} onChange={() => toggle(f.bidder_id)} /> {f.legal_name}
           </label>
         )) : <p className="muted">No firms yet. Add one below.</p>}
-        {data.firms.length > 0 && <button className="btn small" type="submit" disabled={busy}>Save participants</button>}
+        {data.firms.length > 0 && (
+          <>
+            <button className="btn small" type="submit" disabled={busy}>Save participants</button>
+            <p className="small muted">Unticked firms are left out of evaluation. Their uploaded bids are kept, so ticking them again brings them back.</p>
+          </>
+        )}
       </form>
       <form className="drop" onSubmit={add}>
         <label className="field">Firm's legal name

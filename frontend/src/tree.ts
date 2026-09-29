@@ -29,7 +29,7 @@ export function setGroupScoredBy(group: string, value: string, rows: Criterion[]
   return rows.map((r) => (r.code === group || isUnder(r, group, rows) ? { ...r, scored_by: value } : r));
 }
 
-const CHECKED: (keyof Criterion)[] = ["max_marks", "max_items", "allowed", "group_cap"];
+const CHECKED: (keyof Criterion)[] = ["max_marks", "max_items", "allowed"];
 
 // True when a value behind the heading's total was edited since the page loaded,
 // so the total and its check are out of date until the user saves.

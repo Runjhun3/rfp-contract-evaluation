@@ -7,17 +7,18 @@ file lists what exists and how the pieces fit together.
 | File | Used by | Input | Output |
 | ---- | ------- | ----- | ------ |
 | `system_v2.md` | every evaluation call | — | role + general rules |
-| `criteria_extraction_v2.md` | EXTRACT_CRITERIA | RFP Annexure II/III pages | criterion list JSON (v2: group headings + `parent` on every sub-criterion) |
-| `page_label_v2.md` | LABEL_PAGES | ~20 page snippets | page_type per page |
-| `item_eval_v3.md` | EVAL_ITEM | one item's pages (one criterion) | facts with quotes + judgement |
-| `item_recheck_v1.md` | EVAL_ITEM, only when Python recomputes a test differently | the item prompt + previous answer + findings | the full item JSON again |
+| `criteria_extraction_v3.md` | EXTRACT_CRITERIA | RFP Annexure II/III pages | criterion list JSON (v2: group headings + `parent` on every sub-criterion) |
+| `page_label_v3.md` | LABEL_PAGES | ~20 page snippets | page_type per page |
+| `item_eval_v4.md` | EVAL_ITEM | one item's pages (one criterion) | facts with quotes + judgement |
+| `item_recheck_v2.md` | EVAL_ITEM, only when Python recomputes a test differently or a rejection has no hard fail | the item prompt + previous answer + findings | the full item JSON again |
+| `item_count_rule_v1.md` | EVAL_ITEM, added for a criterion scored by the number of qualifying items | code + bands | (part of the item JSON: marks 1/0) |
 | `criterion_eval_v1.md` | EVAL_CRITERION | item results JSON | counted items + marks |
 
 ## How an item call is assembled
 ```
 system:  system_v2.md                           ┐ identical for every item call
          + evaluation_prompt.criteria_block     ┘ in a run → cache point here
-user:    item_eval_v3.md (+ page images for a CV) (filled: bidder, label, kind, code)
+user:    item_eval_v4.md (+ page images for a CV) (filled: bidder, label, kind, code)
          + pages: "[PDF p. 285]\n<text>\n\n[PDF p. 286]\n<text> ..."
 ```
 The criteria block is tender data (DB, human-approved). An NSDF example is

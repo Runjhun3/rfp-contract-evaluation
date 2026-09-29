@@ -34,20 +34,22 @@ tender ─┬─ tender_document
         │                  └─ criterion_score ─── review_decision
         ├─ manual_score
         └─ job
-views: final_score (review wins over checked marks), run_total (/65 + /35, before group caps)
+views: final_score (review wins over checked marks), run_total (/65 + /35)
 ```
 
 ## Rules the schema enforces
-- **Group caps.** `criterion.group_cap` (group headings only) limits a group to
-  min(sum of its sub-criteria, cap). Python applies it to the final marks
-  (`app/evaluate/group_cap.py`); `run_total` is the uncapped sum, so results and
-  exports use the Python totals.
+- **Group headings.** A criterion that another row names as its parent is a group
+  heading; its total is the plain sum of its sub-criteria. (`group_cap`, added by
+  migration 003, was dropped by migration 005; see D-033.)
 - **Extraction vs judgement.** `page` holds only text/OCR. Anything an LLM
   decided (`page_label`, `bid_item`, `item_result`, `criterion_score`) hangs off
   a `run_id`, so re-running with a new prompt never overwrites old results.
-- **Append-only review.** `review_decision` rows are never updated; the latest
-  whole-criterion decision wins in `final_score`. A reason of < 10 characters
-  is rejected by a CHECK constraint.
+- **Append-only review.** `review_decision` rows are never updated. Decisions are
+  per item (`item_id` set); `final_score` computes a criterion's marks from the
+  latest decision on each item (best max-items, capped at max marks). A
+  whole-criterion decision (`item_id` null, criteria without items, or made before
+  migration 006) wins while it is the latest on the score. An override needs a
+  reason of at least 10 characters (CHECK constraint); accepting needs none.
 - **One item, one criterion.** A project repeated under A.1/A.2/A.3 is three
   `bid_item` rows sharing a `copy_group_id`; `copy_group.mismatches` lists
   any disagreement.
@@ -61,6 +63,9 @@ views: final_score (review wins over checked marks), run_total (/65 + /35, befor
 - `tender.status`: DRAFT → RFP_UPLOADED → CRITERIA_READY → PROMPT_APPROVED →
   EVALUATING → REVIEW → CLOSED
 - `bid_submission.status`: AWAITING_FILES → UPLOADED → INGESTING → INGESTED | FAILED
+- `bid_submission.included` (004): false when the firm is unticked on the participants
+  screen. The row is never deleted (it carries the bid file and, through runs, its
+  scores); unticked firms are left out of the list, the counts and new runs.
 - `evaluation_run.status`: QUEUED → RUNNING → DONE | FAILED | CANCELLED
 - `run_submission.stage`: QUEUED → READING → OCR → LABELLING → ITEMS →
   CHECKS → SCORING → DONE | FAILED

@@ -5,7 +5,6 @@ import type { Criterion } from "./types";
 const row = (code: string, parent: string | null, is_group = false, scored_by = "LLM"): Criterion => ({
   criterion_id: code, code, parent_code: parent, is_group, stage: "TECHNICAL", kind: null, title: code,
   rfp_text: "", meaning: "", max_marks: "10", max_items: null, scored_by, rfp_page: null, allowed: "",
-  group_cap: null,
 });
 
 const rows = [row("A", null, true), row("A.1", "A"), row("A.2", "A"), row("B", null, true),

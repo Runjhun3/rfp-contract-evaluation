@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from app.criteria import (group_codes, group_view, items_warning, missing_max_marks, review_view,
-                          scored_total)
+                          scored_total, scoring)
 from app.ingest.extract_criteria import (ExtractedCriterion, GeneralCondition, build_block,
                                          merge)
 
@@ -58,15 +58,6 @@ def test_group_marks_that_differ_from_their_parts_are_reported_not_corrected():
     assert scored_total(rows) == Decimal("100")
 
 
-def test_a_group_cap_trims_the_group_and_the_scored_total():
-    rows = tender(a_marks="36")
-    rows[1]["group_cap"] = Decimal("36")
-    view = group_view(rows, rows[1])
-    assert view["parts_total"] == Decimal("40") and view["effective_total"] == Decimal("36")
-    assert view["capped"] is True and view["rfp_matches"] is True
-    assert scored_total(rows) == Decimal("96")
-
-
 def test_max_items_times_the_top_item_mark_should_give_the_marks():
     good = {**row("A.2", Decimal("10")), "max_items": 5, "allowed": "1, 1.5, 2"}
     assert items_warning(good) is None
@@ -105,3 +96,14 @@ def test_eligibility_rows_from_several_chunks_are_numbered_once_each():
     assert [(r.code, r.title) for r in rows] == [
         ("E.1", "Bid Security"), ("E.2", "Empanelment"), ("E.3", "Bid Submission Form"),
         ("A.1", "A.1")]
+
+
+def test_every_criterion_with_marks_is_scored_somehow():
+    rows = [row("A", Decimal("15"), kind=None),                                # group heading
+            row("A.1", Decimal("5"), kind=None, parent="A"),                   # e.g. turnover
+            row("A.2", Decimal("10"), parent="A"),
+            row("B.1", Decimal("8"), kind="CV"),
+            row("C", Decimal("35"), kind=None, scored_by="COMMITTEE"),         # a presentation
+            row("D", None, kind=None),                                          # no marks
+            row("E.1", None, kind=None, stage="ELIGIBILITY")]
+    assert scoring(rows) == {"A.1": "BID", "A.2": "PROJECT", "B.1": "CV", "C": "COMMITTEE"}

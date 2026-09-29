@@ -1,6 +1,7 @@
 """Python re-adds a CV's employment rows and compares the total with the years of
-experience the LLM used. Overlapping jobs count once; "present" means the bid
-submission date. A difference of a year or more is a failed check (-> review).
+experience the LLM used. Both the first and the last month of a job count (Dec 2020 to
+Nov 2023 is 36 months), as a CV means them; overlapping jobs count once; "present"
+means the bid submission date. A difference of a year or more is a failed check (-> review).
 Nothing is corrected.
 """
 import re
@@ -40,14 +41,15 @@ def experience_check(result: ItemResult, item: Item, as_of: date) -> EvidenceChe
 
 
 def total_months(jobs: list[Job], as_of: date) -> tuple[int, int]:
-    """(months covered by the jobs, rows whose dates could not be read)."""
+    """(months covered by the jobs, rows whose dates could not be read). A span runs
+    from its start month up to, but not including, the month after its end month."""
     spans, unread = [], 0
     for job in jobs:
         start, end = _month(job.start, as_of), _month(job.end, as_of)
         if start is None or end is None or end < start:
             unread += 1
             continue
-        spans.append((start, end))
+        spans.append((start, end + 1))  # the end month is worked too
     months, reach = 0, None
     for start, end in sorted(spans):
         if reach is not None and start < reach:

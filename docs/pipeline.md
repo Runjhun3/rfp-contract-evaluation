@@ -26,8 +26,8 @@ Two rules run through every step:
 | ---- | --- | ------------ |
 | 1 | INGEST_FILE | sha256 check (re-upload = no-op). Store in S3. pypdfium2 reads the text layer of every page → `page` rows. `pages_done` updated as it goes, so the job can resume. |
 | 2 | OCR_PAGES | Pages with < 50 chars of text **or an image covering ≥ 25% of the page** are bundled into one PDF under `tmp/<file_id>/` and sent to Textract `StartDocumentTextDetection` (async). Text + confidence go back into `page`. tmp object deleted. |
-| 3 | LABEL_PAGES | Batches of ~20 pages (first 1,500 chars each) + the tender's criterion list (`code — meaning`) with `page_label_v2.md`. Sets `page_type`; for a claim summary the ONE `criterion_code` whose **meaning** it claims for (null if it covers several); for header/CV pages the best match by meaning, with `map_confidence`; and the item's `title`. Section-title pages are `BLANK`. Also checks the cover page for the GeM bid no. |
-| 4 | BUILD_PROJECTS | Deterministic Python. Each `PROJECT_HEADER` page starts an item that runs until the next header, CV or section break. **Each item belongs to exactly one criterion: the bidder's claim decides.** A claim summary for one criterion opens a section; every item of the same kind (project/CV) after it takes that criterion until the next claim summary or marketing page. Only items outside a section use their own page's label. If a bidder repeats the same project under A.1, A.2 and A.3, that is three items (three copies). Items are cross-checked against the `CLAIM_SUMMARY` page (count, page ranges); differences are flagged. |
+| 3 | LABEL_PAGES | Batches of ~20 pages (first 1,500 chars each) + the tender's criterion list (`code — meaning`, whole-bid criteria marked `[whole bid]`) with `page_label_v3.md`. Any page that is evidence for a whole-bid criterion is tagged with it. Sets `page_type`; for a claim summary the ONE `criterion_code` whose **meaning** it claims for (null if it covers several); for header/CV pages the best match by meaning, with `map_confidence`; and the item's `title`. Section-title pages are `BLANK`. Also checks the cover page for the GeM bid no. |
+| 4 | BUILD_PROJECTS | Deterministic Python. Each `PROJECT_HEADER` page starts an item that runs until the next header, CV or section break. **Each item belongs to exactly one criterion: the bidder's claim decides.** A CV names the position it is proposed for, so a CV page's own label decides its criterion. A claim summary for one criterion opens a section; every project after it takes that criterion until the next claim summary or marketing page. A summary spread over consecutive pages opens a section only if all its pages point to the same criterion. Items outside a section use their own page's label. The same person's CV twice under one criterion (e.g. full CV + one-page profile) is scored once: the longest copy; the others are marked `duplicate_of` and not scored. If a bidder repeats the same project under A.1, A.2 and A.3, that is three items (three copies). Items are cross-checked against the `CLAIM_SUMMARY` page (count, page ranges); differences are flagged. |
 
 Why the image rule: bidders put a typed caption ("Documentary Evidence 5:
 Letter of Completion") above a scanned certificate. A text-length rule alone
@@ -37,13 +37,29 @@ For NSDF expect a few pages (EY, PwC) up to most of the evidence (GT, Deloitte).
 Start ingestion as soon as a bid is uploaded, not when the run starts.
 
 ## 3. Evaluation run
+Which criteria are scored (`app/criteria.py` `scoring`): every criterion with marks,
+except group headings and pass/fail eligibility rows. Per project or per CV when it
+says so; once on the whole bid (kind BID, e.g. turnover) when the AI scores it but
+neither applies, from one item made of all its tagged evidence pages; by the
+committee (marks entered on the Results page) when "Scored by" is the committee,
+whatever its stage. Results and the export take their columns and maximums from
+the criteria, so a criterion never silently drops out; one not scored for a
+finished participant blocks the export until that participant is evaluated again.
+
+A criterion that gives marks by HOW MANY qualifying items the bidder shows ("up to 3
+projects - 5 marks, 4-6 - 7, 7 or more - 10") carries `count_bands` (extraction v3).
+Each of its items is judged qualifies (1) or not (0) (`item_count_rule_v1.md` is added
+to the item call); no criterion LLM call: every qualifying item counts (up to max
+items) and the marks are the band of that count (`count_bands.py`, and the
+`final_score` view once the committee decides). An override is 1 or 0.
+
 | Step | Job | What happens |
 | ---- | --- | ------------ |
-| 1 | EVAL_ITEM (one per item) | `system_v2` + criteria block (cached) + `item_eval_v3` + only this item's pages, each prefixed `[PDF p. N]`. For a CV the page images are sent too (≤ 20), because CV tables often have a text layer out of reading order. Returns facts, **each with page + exact quote**, `relies_on`, eligible, marks, reason, confidence, and any suspicious text. It also lists every numeric/date test it applied (`conditions`: fact, test, threshold, met); Python recomputes each one (`condition_check.py`) and, if any result differs, sends the item back ONCE with `item_recheck_v1` stating what differs. The second answer stands; the first is kept on record (`recheck`) and shown to the committee. A CV also returns its employment rows, the experience years used and one score per sub-criterion (marks = their sum). Judgement calls (client category, completion of extended/phased work, relevance) are marked eligible with confidence < 0.8 for the committee; only hard fails are rejected. Writes item facts + draft `claim`. |
+| 1 | EVAL_ITEM (one per item) | `system_v2` + criteria block (cached) + `item_eval_v4` (with the criterion's own RFP text) + only this item's pages, each prefixed `[PDF p. N]`. For a CV the page images are sent too (≤ 20), because CV tables often have a text layer out of reading order. Returns facts, **each with page + exact quote**, `relies_on`, eligible, marks, reason, confidence, and any suspicious text. It also lists every numeric/date test it applied (`conditions`: fact, test, threshold, met); Python recomputes each one (`condition_check.py`). A rejection must name its hard fail (`hard_fail`: a missing required document, a failed test from `conditions`, or a quoted RFP exclusion); Python checks it (`rejection_check.py`). If a test differs or a rejection has no hard fail, the item goes back ONCE with `item_recheck_v2` stating what was found. The second answer stands; the first is kept on record (`recheck`) and shown to the committee. A CV also returns its employment rows, the experience years used and one score per sub-criterion (marks = their sum). Judgement calls (client category, completion of extended/phased work, relevance) are marked eligible with confidence < 0.8 for the committee; only hard fails are rejected. Writes item facts + draft `claim`. |
 | 2 | (same job) | `evidence_check.py` — see below. Writes `evidence_check` rows. |
 | 3 | COPY_CHECK (one per bidder, after all EVAL_ITEM) | `copy_check.py` groups copies of the same project (same client + similar title) and compares client, value and dates. Any difference → `COPY_MISMATCH` on every copy. |
 | 4 | EVAL_CRITERION (one per bidder × criterion) | `criterion_eval_v1` + item results JSON only (no pages). Applies max N / best N → counted flags + total. Updates `claim.counted`, writes `criterion_score.llm_marks`. |
-| 5 | (same job) | `arithmetic_check.py`: `checked_marks` = sum of counted claim marks, capped at `max_marks`; counted ≤ `max_items`; each item mark allowed by the prompt; a CV's marks equal the sum of its sub-scores; duration recomputed from verified dates. Sets `arithmetic_ok`. |
+| 5 | (same job) | `arithmetic_check.py`: `checked_marks` = sum of counted claim marks, capped at `max_marks`; counted ≤ `max_items`; each item mark allowed by the prompt (0 is always allowed); a CV's marks equal the sum of its sub-scores; duration recomputed from verified dates. Sets `arithmetic_ok`. |
 | 6 | (same job) | `flags.py` sets `needs_review` + `review_reasons`. |
 
 ### Evidence check (`evaluate/evidence_check.py`)
@@ -60,7 +76,10 @@ For every item the LLM marks eligible:
    a year or more away from the years the LLM used fails the check.
 5. Every test in `conditions` is recomputed from the fact values
    (duration from the verified dates, CV years from the employment rows); a
-   test that cannot be recomputed is recorded as such, never guessed.
+   test that cannot be recomputed is recorded as such, never guessed. A value a
+   document states only as a bound ("more than INR 3,000 crore") is read as a
+   range (`bounds.py`): a test is settled only when the whole range is on one side
+   of the threshold; its number is still checked against the quote.
 6. Any failure → `EVIDENCE_UNVERIFIED` flag (a wrong test → `CONDITION_MISMATCH`). Python does not change the LLM's
    decision; the committee sees exactly which quote failed and why.
 
@@ -71,7 +90,11 @@ For every item the LLM marks eligible:
 | EVIDENCE_UNVERIFIED | a counted item lacks a certificate page, or a quote is not on its page, or does not state the value/date used |
 | COPY_MISMATCH | copies of the same project disagree on client, value or dates |
 | CONDITION_MISMATCH | a numeric/date test the LLM applied still gives a different result when Python recomputes it, after the one re-check |
-| RECHECKED | Python recomputed a test differently, so the item was re-evaluated once; the first and second answers are both on record |
+| RECHECKED | Python recomputed a test differently, or found a rejection without a hard fail, so the item was re-evaluated once; the first and second answers are both on record |
+| NO_ITEMS_FOUND | nothing in the bid was assigned to this criterion; the summary lists the items of that kind found elsewhere (e.g. a CV assigned to another position) |
+| NO_PROOF | an item result still has no reason, or earns marks without any quoted evidence, after the one re-check |
+| UNSUPPORTED_REJECTION | an item is still not eligible after the re-check without a hard fail (missing required document, failed test, or quoted RFP exclusion) |
+| DUPLICATE_CV | the same person's CV was found twice under this criterion; only the longest copy was scored |
 | MAPPING_UNSURE | an item's criterion mapping has confidence < 0.80, or disagrees with the bidder's summary page |
 | LOW_CONFIDENCE | any claim confidence < 0.80 |
 | OCR_EVIDENCE | a cited evidence page came from Textract/vision |
@@ -80,17 +103,45 @@ For every item the LLM marks eligible:
 | SUSPICIOUS_TEXT | a page contains text addressed to the evaluator (instructions, "award full marks") |
 | NO_ANCHOR | an item was found only by search, not a header page |
 
-`CAP_APPLIED` is not a review flag: it marks a group whose total was trimmed to
-its group cap (D-030). It is computed from the final marks when results are
-shown, with the uncapped sum beside the capped total, and needs no decision.
-
 ## 4. Committee
-1. Review screen lists every claim: counted/excluded, reason, quotes with
+Results are per project, not per run (`app/results.py`, `/projects/<id>/results`): each
+participant that is ticked or has been evaluated shows its LATEST evaluation, whichever run
+it came from. A participant being evaluated (again) shows no marks or rank until that
+evaluation is DONE, then its new marks; failed and never-evaluated participants stay
+unranked. The page refreshes every 10 s while anyone is being evaluated. Export waits for
+every participant to have a finished evaluation.
+
+1. Evidence screen (`app/evidence_view.py`, wording in `app/evidence_labels.py`): items one line each
+   (an attention dot on items that need the committee), grouped Counted / Not counted / Not scored; for the
+   chosen item a verdict, a "for the committee to decide" box on judgement calls, failed
+   checks first and passed checks folded. Presentation only; no score or flag changes.
+   It lists every claim: counted/excluded, reason, quotes with
    pass/fail, link to the S3 page (presigned URL, 15 min).
-2. Reviewers accept or override with a reason (append-only `review_decision`).
-3. Committee enters presentation marks (`manual_score`).
-4. Export: `export/annexure_sheet.py` writes the committee's existing
-   *ANNEXURE III EVALUATION* layout: marks + PDF page ranges per bidder.
+2. Reviewers decide each item (project or CV) of a criterion (append-only
+   `review_decision`, `item_id` set): accept keeps the AI's marks for the item (its
+   marks if counted, else 0) and needs no reason; override sets the item's marks (any mark from 0
+   up to the most one item can earn: the highest listed per-item mark, 1 for a
+   count-based criterion, else the criterion's max) and
+   needs a reason of at least 10 characters. The criterion's final marks
+   (`final_score` view, migration 006) are the best max-items of the items' final
+   marks, capped at max marks; overriding a not-counted item brings it into the count. The `final_item` view
+   (migration 008) gives each item's final marks and whether it counts; the evidence
+   screen groups items by it, so an item overridden into the count shows as counted.
+   Every criterion needs the committee's approval, flagged or not: it is approved when
+   every counted item is decided, and until then it stays highlighted on the results and
+   evidence pages (flagged ones also carry a dot), counts as open, and blocks the export. A criterion with no
+   items takes one decision on the whole criterion.
+3. Committee enters the marks of every committee-scored criterion, e.g. a presentation
+   (`manual_score`, one column each on the Results page).
+4. Export (`app/export/`, `GET /projects/<id>/export.xlsx`): an Excel workbook in the
+   committee's *ANNEXURE III EVALUATION* layout. Sheet *Evaluation*: one row per criterion
+   in RFP order (group headings with the sum of their sub-criteria, the presentation), one column per
+   participant in rank order, each cell the final marks + pages of the items counted, then
+   document total, total and rank. Sheets *Items* (every item claimed, counted or not,
+   with its reason) and *Decisions* (every committee decision, reason, who, when IST).
+   Refused until every participant has a finished evaluation, every flagged mark is
+   decided and presentation marks are saved; the API gives the reasons
+   (`export_blockers`) and the Results page shows them.
 
 ## Out of scope (for now)
 - Comparing judgements across bidders: each bid is evaluated on its own evidence.

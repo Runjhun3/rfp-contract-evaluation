@@ -19,6 +19,22 @@ def load_criteria(path: Path) -> list[Criterion]:
     return [Criterion.model_validate(row) for row in rows]
 
 
+def scoring(rows: list[dict]) -> dict[str, str]:
+    """How each criterion with marks is scored, by code. A criterion with marks entered
+    is always scored and shown; only group headings (whose marks are their sub-rows')
+    and pass/fail eligibility rows are left out.
+      PROJECT / CV : the AI scores it per project or per CV,
+      BID          : the AI scores it once on the whole bid (e.g. turnover),
+      COMMITTEE    : the committee enters its marks (e.g. a presentation)."""
+    groups = group_codes(rows)
+    ways = {}
+    for r in rows:
+        if r["stage"] == "ELIGIBILITY" or r["code"] in groups or r["max_marks"] is None:
+            continue
+        ways[r["code"]] = "COMMITTEE" if r["scored_by"] == "COMMITTEE" else r["kind"] or "BID"
+    return ways
+
+
 def missing_max_marks(rows: list[dict]) -> str | None:
     """The criteria the AI would score per project/CV but that have no max marks.
 
@@ -48,18 +64,15 @@ def _children(rows: list[dict], code: str) -> list[dict]:
 
 def _best(rows: list[dict], row: dict) -> Decimal:
     """The most a bidder can score on a row: its marks, or for a group the sum of its
-    parts, cut to the group cap when one is set (app/evaluate/group_cap.py)."""
+    parts."""
     kids = _children(rows, row["code"])
     if not kids:
         return row["max_marks"] or Decimal(0)
-    total = sum((_best(rows, k) for k in kids), Decimal(0))
-    cap = row.get("group_cap")
-    return min(total, cap) if cap is not None else total
+    return sum((_best(rows, k) for k in kids), Decimal(0))
 
 
 def scored_total(rows: list[dict]) -> Decimal:
-    """Max marks of the tender: every non-eligibility criterion except group headings,
-    with group caps applied."""
+    """Max marks of the tender: every non-eligibility criterion except group headings."""
     codes = {r["code"] for r in rows}
     return sum((_best(rows, r) for r in rows
                 if r["stage"] != "ELIGIBILITY" and r.get("parent_code") not in codes), Decimal(0))
@@ -68,23 +81,21 @@ def scored_total(rows: list[dict]) -> Decimal:
 def group_view(rows: list[dict], group: dict) -> dict:
     """A group heading's computed total, beside the marks the RFP states for it.
 
-    parts_total is the plain sum of the sub-rows; effective_total applies the cap.
-    rfp_matches compares effective_total with the RFP's figure (None when the RFP
-    gives none). Shown to the reviewer; neither number is corrected.
+    parts_total is the plain sum of the sub-rows; rfp_matches compares it with the
+    RFP's figure (None when the RFP gives none). Shown to the reviewer; neither number
+    is corrected.
     """
     parts = [r["max_marks"] or Decimal(0) for r in _children(rows, group["code"])]
     total = sum(parts, Decimal(0))
-    cap = group.get("group_cap")
-    effective = min(total, cap) if cap is not None else total
-    return {"parts": parts, "parts_total": total, "effective_total": effective,
-            "capped": effective < total,
-            "rfp_matches": None if group["max_marks"] is None else effective == group["max_marks"]}
+    return {"parts": parts, "parts_total": total,
+            "rfp_matches": None if group["max_marks"] is None else total == group["max_marks"]}
 
 
 def items_warning(row: dict) -> str | None:
     """Max items × the highest mark per item should give the criterion's marks."""
     allowed = [Decimal(m) for m in str(row.get("allowed") or "").split(",") if m.strip()]
-    if not allowed or row.get("max_items") is None or row["max_marks"] is None:
+    if (not allowed or row.get("max_items") is None or row["max_marks"] is None
+            or row.get("count_bands")):             # marks by number of items: no per-item mark
         return None
     best = row["max_items"] * max(allowed)
     if best == row["max_marks"]:

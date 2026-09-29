@@ -6,13 +6,14 @@
 4. For a CV, every employment row quote is on its page, and the rows add up to the
    years of experience used (cv_check.py).
 5. Every numeric/date test the LLM applied gives the same result when Python
-   recomputes it (condition_check.py); a re-check, if one happened, is recorded.
+   recomputes it (condition_check.py), and a rejection rests on a hard fail
+   (rejection_check.py); a re-check, if one happened, is recorded.
 Failures are recorded, never corrected.
 """
 from datetime import date
 
 from app.config import Settings
-from app.evaluate.condition_check import condition_checks
+from app.evaluate.rejection_check import answer_checks
 from app.evaluate.cv_check import experience_check
 from app.evaluate.parse_amount import amount_matches
 from app.evaluate.parse_date import date_matches
@@ -45,7 +46,7 @@ def check_item(result: ItemResult, item: Item, pages: dict[int, Page],
         total = experience_check(result, item, as_of)
         if total:
             checks.append(total)
-    checks += condition_checks(result, as_of)
+    checks += answer_checks(result, as_of)
     if result.recheck:
         checks.append(_recheck_note(result))
     return checks
@@ -70,7 +71,7 @@ def _expand(names: list[str]) -> list[str]:
 
 
 def _presence(name: str, cited: list[int], item: Item) -> EvidenceCheck:
-    inside = [p for p in cited if item.from_page <= p <= item.to_page]
+    inside = [p for p in cited if p in item.page_list()]
     note = "" if inside else f"no {name} page cited inside p.{item.from_page}-{item.to_page}"
     return EvidenceCheck(label=item.label, fact=f"{name}_present", quote_found=bool(inside),
                          match_score=100 if inside else 0,
@@ -83,7 +84,7 @@ def _check_fact(item: Item, name: str, fact: Fact | None, pages: dict[int, Page]
     if fact is None or not fact.quote or fact.page is None:
         return EvidenceCheck(**base, quote_found=False, note="no quote given")
     page = pages.get(fact.page)
-    if page is None or not item.from_page <= fact.page <= item.to_page:
+    if page is None or fact.page not in item.page_list():
         return EvidenceCheck(**base, pdf_page_no=fact.page, quote=fact.quote,
                              quote_found=False, note="cited page is outside the item")
     score = quote_score(fact.quote, page.full_text())

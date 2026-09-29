@@ -6,10 +6,11 @@ from decimal import Decimal, InvalidOperation
 
 from pydantic import BaseModel, Field
 
-from app.criteria import group_codes
+from app.criteria import scoring
+from app.evaluate.count_bands import describe
 from app.llm.client import LlmClient
 from app.llm.prompts import fill, load
-from app.schemas.records import Page
+from app.schemas.records import CountBand, Page
 
 CHUNK_PAGES = 100   # whole RFP in one call up to 100 pages (docs/pipeline.md), so
                     # a form at the back is seen next to the criterion it proves
@@ -27,6 +28,7 @@ class ExtractedCriterion(BaseModel):
     max_items: int | None = None
     kind: str | None = None
     item_marks: list[str] = Field(default_factory=list)
+    count_bands: list[dict] = Field(default_factory=list)   # {"min", "max", "marks"}
     scored_by: str = "LLM"
     rfp_page: int | None = None
 
@@ -79,11 +81,11 @@ def decimal_or_none(value: str | None) -> Decimal | None:
 
 def build_block(rows: list[dict], general: list[GeneralCondition] | None = None) -> str:
     """Draft rule text for the prompt: the RFP's general conditions, then every
-    criterion the LLM scores per project/CV.
+    criterion with marks the LLM scores (per project, per CV or on the whole bid).
 
     Group headings are left out: their marks are only the sum of their sub-criteria.
     """
-    groups = group_codes(rows)
+    ways = scoring(rows)
     parts = ["Apply each criterion exactly as the RFP text says. "
              "The plain-words line only explains it."]
     if general:
@@ -91,11 +93,13 @@ def build_block(rows: list[dict], general: list[GeneralCondition] | None = None)
             f"- \"{g.text}\"" + (f" [RFP p. {g.rfp_page}]" if g.rfp_page else "")
             for g in general))
     for c in rows:
-        if (c["stage"] != "TECHNICAL" or c["scored_by"] != "LLM" or not c["kind"]
-                or c["code"] in groups):
+        if ways.get(c["code"]) not in ("PROJECT", "CV", "BID"):   # AI-scored rows with marks
             continue
         limit = f", max {c['max_items']} items" if c.get("max_items") else ""
         allowed = c.get("allowed") or "as the RFP text says"
+        if c.get("count_bands"):
+            bands = describe([CountBand.model_validate(b) for b in c["count_bands"]])
+            allowed = f"none per item: marks by the number of qualifying items ({bands})"
         parts.append(f"CRITERION {c['code']}  (max {c['max_marks']} marks{limit})\n"
                      f"RFP text: \"{c['rfp_text']}\"\n"
                      f"In plain words: {c['meaning']}\n"

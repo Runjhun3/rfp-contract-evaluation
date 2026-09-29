@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-Kind = Literal["PROJECT", "CV"]
+Kind = Literal["PROJECT", "CV", "BID"]   # BID: scored once on the whole bid
 
 
 class RunContext(BaseModel):
@@ -13,6 +13,13 @@ class RunContext(BaseModel):
     department: str
     bidder: str
     bid_due_date: date
+
+
+class CountBand(BaseModel):
+    """Marks for a number of qualifying items: min..max items (max None = or more)."""
+    min: int
+    max: int | None = None
+    marks: Decimal
 
 
 class Criterion(BaseModel):
@@ -24,6 +31,7 @@ class Criterion(BaseModel):
     max_marks: Decimal
     max_items: int | None = None
     allowed_item_marks: list[Decimal]
+    count_bands: list[CountBand] = []     # marks by number of qualifying items
 
 
 class Page(BaseModel):
@@ -54,6 +62,13 @@ class Item(BaseModel):
     map_confidence: float
     from_page: int
     to_page: int
+    pages: list[int] = []             # BID: the evidence pages (not a continuous range)
+    person: str = ""                  # CV: the proposed person's name, normalised
+    duplicate_of: str | None = None   # label of the item kept for the same CV; not scored
+
+    def page_list(self) -> list[int]:
+        """The item's pages: its evidence pages (BID), else its continuous range."""
+        return self.pages or list(range(self.from_page, self.to_page + 1))
 
 
 class EvidenceCheck(BaseModel):

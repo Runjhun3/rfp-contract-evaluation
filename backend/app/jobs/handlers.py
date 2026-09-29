@@ -1,8 +1,12 @@
 """What the worker does for each job kind."""
+import json
 from pathlib import Path
+
+from pydantic import ValidationError
 
 from app import files
 from app.config import Settings
+from app.criteria import scoring
 from app.db import q_projects, q_runs
 from app.db.connection import all_rows, one_row, transaction
 from app.db.save_run import save_output
@@ -11,7 +15,7 @@ from app.ingest.ocr import ocr_pages
 from app.ingest.read_pages import read_pages
 from app.llm.client import LlmClient
 from app.pipeline import run as run_pipeline
-from app.schemas.records import Criterion, RunContext
+from app.schemas.records import CountBand, Criterion, RunContext
 
 
 def extract_criteria(settings: Settings, llm: LlmClient, job: dict) -> None:
@@ -34,18 +38,30 @@ def extract_criteria(settings: Settings, llm: LlmClient, job: dict) -> None:
 def _upsert_criterion(cur, tender_id: str, c) -> None:
     stage = c.stage if c.stage in ("ELIGIBILITY", "TECHNICAL", "PRESENTATION") else "TECHNICAL"
     cur.execute("""insert into criterion (tender_id, code, parent_code, stage, kind, title, rfp_text,
-                     meaning, max_marks, max_items, allowed_item_marks, scored_by, rfp_page)
-                   values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::numeric[], %s, %s)
+                     meaning, max_marks, max_items, allowed_item_marks, scored_by, rfp_page,
+                     count_bands)
+                   values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::numeric[], %s, %s, %s::jsonb)
                    on conflict (tender_id, code) do update set parent_code = excluded.parent_code,
                      stage = excluded.stage,
                      kind = excluded.kind, title = excluded.title, rfp_text = excluded.rfp_text,
                      meaning = excluded.meaning, max_marks = excluded.max_marks,
                      max_items = excluded.max_items, allowed_item_marks = excluded.allowed_item_marks,
-                     scored_by = excluded.scored_by, rfp_page = excluded.rfp_page""",
+                     scored_by = excluded.scored_by, rfp_page = excluded.rfp_page,
+                     count_bands = excluded.count_bands""",
                 (tender_id, c.code, c.parent, stage, c.kind if c.kind in ("PROJECT", "CV") else None,
                  c.title, c.rfp_text, c.meaning, decimal_or_none(c.max_marks), c.max_items,
                  [m for m in c.item_marks if decimal_or_none(m) is not None],
-                 "COMMITTEE" if c.scored_by == "COMMITTEE" else "LLM", c.rfp_page))
+                 "COMMITTEE" if c.scored_by == "COMMITTEE" else "LLM", c.rfp_page,
+                 json.dumps(_bands(c.count_bands))))
+
+
+def _bands(raw: list[dict]) -> list[dict]:
+    """Count bands as extracted, kept only when every band is well formed."""
+    try:
+        bands = [CountBand.model_validate(b) for b in raw]
+    except ValidationError:
+        return []
+    return [{"min": b.min, "max": b.max, "marks": str(b.marks)} for b in bands]
 
 
 def evaluate_submission(settings: Settings, llm: LlmClient, job: dict) -> None:
@@ -78,21 +94,21 @@ def _load(cur, run_id: str, submission_id: str):
         join evaluation_prompt p on p.prompt_id = r.prompt_id
         join bid_submission s on s.submission_id = %s join bidder b using (bidder_id)
         where r.run_id = %s""", (submission_id, run_id))
-    rows = all_rows(cur, """select criterion_id::text, code, title, meaning, kind, rfp_text,
-                                   max_marks, max_items, allowed_item_marks
-                            from criterion c where tender_id = %s and stage = 'TECHNICAL'
-                              and scored_by = 'LLM' and kind is not null
-                              and not exists (select 1 from criterion sub       -- group heading
-                                              where sub.tender_id = c.tender_id
-                                                and sub.parent_code = c.code)
-                            order by code""",
-                    (head["tender_id"],))
+    every = all_rows(cur, """select criterion_id::text, code, parent_code, stage, scored_by,
+                                    title, meaning, kind, rfp_text, max_marks, max_items,
+                                    allowed_item_marks, count_bands
+                             from criterion where tender_id = %s order by code""",
+                     (head["tender_id"],))
+    ways = scoring(every)                   # every criterion with marks the AI scores
+    rows = [{**r, "kind": ways[r["code"]]} for r in every
+            if ways.get(r["code"]) in ("PROJECT", "CV", "BID")]
     file = one_row(cur, """select file_id::text, s3_key from submission_file where submission_id = %s
                            order by uploaded_at desc limit 1""", (submission_id,))
     ctx = RunContext(tender_no=head["gem_bid_no"] or head["name"], department=head["department"],
                      bidder=head["short_name"], bid_due_date=head["due"])
     criteria = [Criterion(code=r["code"], title=r["title"], meaning=r["meaning"], kind=r["kind"],
                           rfp_text=r["rfp_text"], max_marks=r["max_marks"],
-                          max_items=r["max_items"], allowed_item_marks=r["allowed_item_marks"] or [])
+                          max_items=r["max_items"], allowed_item_marks=r["allowed_item_marks"] or [],
+                          count_bands=r["count_bands"] or [])
                 for r in rows]
     return ctx, head["criteria_block"], criteria, {r["code"]: r["criterion_id"] for r in rows}, file
