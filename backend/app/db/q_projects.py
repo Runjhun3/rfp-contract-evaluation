@@ -56,6 +56,7 @@ def criteria(cur, tender_id: str) -> list[dict]:
     return all_rows(cur, """
         select criterion_id::text, code, parent_code, stage, kind, title, rfp_text, meaning,
                trim_scale(max_marks) as max_marks, max_items, scored_by, rfp_page,
+               trim_scale(group_cap) as group_cap,
                array_to_string(array(select trim_scale(m) from unnest(allowed_item_marks) m),
                                ', ') as allowed
         from criterion where tender_id = %s order by stage desc, code""", (tender_id,))
@@ -75,9 +76,11 @@ def drop_stale_criteria(cur, tender_id: str, codes: list[str]) -> None:
 
 def update_criterion(cur, criterion_id: str, fields: dict) -> None:
     cur.execute("""update criterion set meaning = %s, kind = %s, max_marks = %s, max_items = %s,
-                     allowed_item_marks = %s::numeric[], scored_by = %s where criterion_id = %s""",
+                     allowed_item_marks = %s::numeric[], scored_by = %s, group_cap = %s
+                   where criterion_id = %s""",
                 (fields["meaning"], fields["kind"] or None, fields["max_marks"],
-                 fields["max_items"], fields["allowed"], fields["scored_by"], criterion_id))
+                 fields["max_items"], fields["allowed"], fields["scored_by"], fields["group_cap"],
+                 criterion_id))
 
 
 def latest_prompt(cur, tender_id: str) -> dict | None:

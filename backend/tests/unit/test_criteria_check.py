@@ -1,6 +1,7 @@
 from decimal import Decimal
 
-from app.criteria import group_codes, group_mismatches, missing_max_marks, review_view, scored_total
+from app.criteria import (group_codes, group_view, items_warning, missing_max_marks, review_view,
+                          scored_total)
 from app.ingest.extract_criteria import (ExtractedCriterion, GeneralCondition, build_block,
                                          merge)
 
@@ -44,14 +45,34 @@ def test_group_headings_are_found_at_any_depth():
     assert group_codes(tender()) == {"A", "B", "B.1"}
     view = review_view(tender())
     assert [r["code"] for r in view["criteria"] if r["is_group"]] == ["A", "B", "B.1"]
-    assert view["technical_total"] == Decimal("100") and view["group_warnings"] == []
+    assert view["technical_total"] == Decimal("100")
+    heading = view["criteria"][1]
+    assert heading["parts"] == [Decimal("25"), Decimal("15")]
+    assert heading["parts_total"] == Decimal("40") and heading["rfp_matches"] is True
 
 
 def test_group_marks_that_differ_from_their_parts_are_reported_not_corrected():
     rows = tender(a_marks="36")
-    assert group_mismatches(rows) == ["A: the RFP gives 36 marks, but its sub-criteria add "
-                                      "up to 40. Check the marks against the RFP."]
+    view = group_view(rows, rows[1])
+    assert view["parts_total"] == Decimal("40") and view["rfp_matches"] is False
     assert scored_total(rows) == Decimal("100")
+
+
+def test_a_group_cap_trims_the_group_and_the_scored_total():
+    rows = tender(a_marks="36")
+    rows[1]["group_cap"] = Decimal("36")
+    view = group_view(rows, rows[1])
+    assert view["parts_total"] == Decimal("40") and view["effective_total"] == Decimal("36")
+    assert view["capped"] is True and view["rfp_matches"] is True
+    assert scored_total(rows) == Decimal("96")
+
+
+def test_max_items_times_the_top_item_mark_should_give_the_marks():
+    good = {**row("A.2", Decimal("10")), "max_items": 5, "allowed": "1, 1.5, 2"}
+    assert items_warning(good) is None
+    bad = {**good, "max_marks": Decimal("12")}
+    assert items_warning(bad) == "5 items × 2 = 10, but Marks is 12"
+    assert items_warning({**good, "allowed": ""}) is None
 
 
 def test_group_headings_stay_out_of_the_rule_text():

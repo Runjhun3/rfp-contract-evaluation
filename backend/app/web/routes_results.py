@@ -3,9 +3,11 @@ from decimal import Decimal, InvalidOperation
 
 from starlette.routing import Route
 
+from app.criteria import group_codes
 from app.db import q_projects, q_results, q_runs
 from app.db.connection import transaction
 from app.db.repo_setup import LOCAL_USER_ID
+from app.evaluate.group_cap import apply_caps
 from app.web.auth import check_csrf
 from app.web.common import fail, ok, stepper
 
@@ -14,8 +16,16 @@ def _db(request):
     return transaction(request.app.state.settings)
 
 
+def _capped_groups(tree: list[dict]) -> list[dict]:
+    """Group headings with a cap: each gets a column showing sum → capped total."""
+    groups = group_codes(tree)
+    return [{"code": c["code"], "title": c["title"], "cap": c["group_cap"]} for c in tree
+            if c["code"] in groups and c["group_cap"] is not None]
+
+
 def _matrix(cur, run_id: str, tender_id: str) -> dict:
     codes = q_results.scored_criteria(cur, run_id)
+    tree = q_projects.criteria(cur, tender_id)
     cells: dict[str, dict] = {}
     for s in q_results.scores(cur, run_id):
         cells.setdefault(s["submission_id"], {})[s["code"]] = s
@@ -24,19 +34,20 @@ def _matrix(cur, run_id: str, tender_id: str) -> dict:
     rows = []
     for p in q_runs.progress(cur, run_id):
         mine = cells.get(p["submission_id"], {})
-        docs = sum((c["marks"] for c in mine.values()), Decimal(0))
+        totals, docs = apply_caps(tree, {code: c["marks"] for code, c in mine.items()})
         extra = pres_marks.get(p["submission_id"])
         rows.append({"submission_id": p["submission_id"], "name": p["short_name"],
-                     "stage": p["stage"], "cells": mine, "docs": docs, "presentation": extra,
-                     "total": docs + (extra or 0)})
+                     "stage": p["stage"], "cells": mine, "groups": totals, "docs": docs,
+                     "presentation": extra, "total": docs + (extra or 0)})
     rows.sort(key=lambda r: r["total"], reverse=True)
     for row in rows:
         tied = [r for r in rows if r["total"] == row["total"]]
         row["rank"] = f"{rows.index(tied[0]) + 1}{'=' if len(tied) > 1 else ''}"
     open_reviews = sum(1 for r in rows for c in r["cells"].values()
                        if c["needs_review"] and not c["reviewed"])
-    return {"codes": codes, "rows": rows, "presentation": pres, "open_reviews": open_reviews,
-            "docs_max": sum((c["max_marks"] or 0 for c in codes), Decimal(0))}
+    docs_max = apply_caps(tree, {c["code"]: c["max_marks"] or Decimal(0) for c in codes})[1]
+    return {"codes": codes, "caps": _capped_groups(tree), "rows": rows, "presentation": pres,
+            "open_reviews": open_reviews, "docs_max": docs_max}
 
 
 async def results_page(request):

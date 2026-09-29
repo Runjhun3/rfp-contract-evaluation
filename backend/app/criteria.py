@@ -42,36 +42,64 @@ def group_codes(rows: list[dict]) -> set[str]:
     return {r["parent_code"] for r in rows if r.get("parent_code")}
 
 
+def _children(rows: list[dict], code: str) -> list[dict]:
+    return [r for r in rows if r.get("parent_code") == code]
+
+
+def _best(rows: list[dict], row: dict) -> Decimal:
+    """The most a bidder can score on a row: its marks, or for a group the sum of its
+    parts, cut to the group cap when one is set (app/evaluate/group_cap.py)."""
+    kids = _children(rows, row["code"])
+    if not kids:
+        return row["max_marks"] or Decimal(0)
+    total = sum((_best(rows, k) for k in kids), Decimal(0))
+    cap = row.get("group_cap")
+    return min(total, cap) if cap is not None else total
+
+
 def scored_total(rows: list[dict]) -> Decimal:
-    """Max marks of the tender: every non-eligibility criterion except group headings."""
-    groups = group_codes(rows)
-    return sum((r["max_marks"] or Decimal(0) for r in rows
-                if r["stage"] != "ELIGIBILITY" and r["code"] not in groups), Decimal(0))
+    """Max marks of the tender: every non-eligibility criterion except group headings,
+    with group caps applied."""
+    codes = {r["code"] for r in rows}
+    return sum((_best(rows, r) for r in rows
+                if r["stage"] != "ELIGIBILITY" and r.get("parent_code") not in codes), Decimal(0))
 
 
-def group_mismatches(rows: list[dict]) -> list[str]:
-    """Groups whose RFP marks differ from the sum of their direct sub-criteria.
+def group_view(rows: list[dict], group: dict) -> dict:
+    """A group heading's computed total, beside the marks the RFP states for it.
 
-    Shown to the reviewer; neither number is corrected.
+    parts_total is the plain sum of the sub-rows; effective_total applies the cap.
+    rfp_matches compares effective_total with the RFP's figure (None when the RFP
+    gives none). Shown to the reviewer; neither number is corrected.
     """
-    problems = []
-    for group in rows:
-        if group["code"] not in group_codes(rows) or group["max_marks"] is None:
-            continue
-        parts = sum((r["max_marks"] or Decimal(0) for r in rows
-                     if r.get("parent_code") == group["code"]), Decimal(0))
-        if parts != group["max_marks"]:
-            problems.append(f"{group['code']}: the RFP gives {group['max_marks']} marks, but its "
-                            f"sub-criteria add up to {parts}. Check the marks against the RFP.")
-    return problems
+    parts = [r["max_marks"] or Decimal(0) for r in _children(rows, group["code"])]
+    total = sum(parts, Decimal(0))
+    cap = group.get("group_cap")
+    effective = min(total, cap) if cap is not None else total
+    return {"parts": parts, "parts_total": total, "effective_total": effective,
+            "capped": effective < total,
+            "rfp_matches": None if group["max_marks"] is None else effective == group["max_marks"]}
+
+
+def items_warning(row: dict) -> str | None:
+    """Max items × the highest mark per item should give the criterion's marks."""
+    allowed = [Decimal(m) for m in str(row.get("allowed") or "").split(",") if m.strip()]
+    if not allowed or row.get("max_items") is None or row["max_marks"] is None:
+        return None
+    best = row["max_items"] * max(allowed)
+    if best == row["max_marks"]:
+        return None
+    return (f"{row['max_items']} items × {max(allowed)} = {best}, "
+            f"but Marks is {row['max_marks']}")
 
 
 def review_view(rows: list[dict]) -> dict:
-    """The criteria page data: rows flagged as group or scored, the total, and warnings."""
+    """The criteria page data: group headings with their computed totals, scored rows
+    with their item check, and the scored total."""
     groups = group_codes(rows)
-    return {"criteria": [{**r, "is_group": r["code"] in groups} for r in rows],
-            "technical_total": scored_total(rows),
-            "group_warnings": group_mismatches(rows)}
+    view = [{**r, "is_group": True, **group_view(rows, r)} if r["code"] in groups
+            else {**r, "is_group": False, "items_warning": items_warning(r)} for r in rows]
+    return {"criteria": view, "technical_total": scored_total(rows)}
 
 
 def load_block(path: Path) -> str:
