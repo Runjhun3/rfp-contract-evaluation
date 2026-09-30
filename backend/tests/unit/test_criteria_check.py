@@ -1,7 +1,7 @@
 from decimal import Decimal
 
-from app.criteria import (group_codes, group_view, items_warning, missing_max_marks, review_view,
-                          scored_total, scoring)
+from app.criteria import (edited_stage, group_codes, group_view, items_warning,
+                          missing_max_marks, review_view, scored_total, scoring)
 from app.ingest.extract_criteria import (ExtractedCriterion, GeneralCondition, build_block,
                                          merge)
 
@@ -107,3 +107,11 @@ def test_every_criterion_with_marks_is_scored_somehow():
             row("D", None, kind=None),                                          # no marks
             row("E.1", None, kind=None, stage="ELIGIBILITY")]
     assert scoring(rows) == {"A.1": "BID", "A.2": "PROJECT", "B.1": "CV", "C": "COMMITTEE"}
+
+
+def test_the_committee_can_move_a_row_between_eligibility_and_required_documents_only():
+    assert edited_stage("DOCUMENT", "ELIGIBILITY") == "ELIGIBILITY"
+    assert edited_stage("ELIGIBILITY", "DOCUMENT") == "DOCUMENT"
+    assert edited_stage("DOCUMENT", None) == "DOCUMENT"               # not sent: unchanged
+    assert edited_stage("TECHNICAL", "ELIGIBILITY") == "TECHNICAL"    # scored rows stay scored
+    assert edited_stage("DOCUMENT", "TECHNICAL") == "DOCUMENT"

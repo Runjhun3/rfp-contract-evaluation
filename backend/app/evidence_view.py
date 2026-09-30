@@ -23,7 +23,8 @@ GROUPS = (("counted", "Counted"), ("not_counted", "Not counted"),
 
 def evidence_view(cur, score_id: str, chosen: str | None, threshold: Decimal) -> dict | None:
     score = q_results.score_detail(cur, score_id)
-    if score is None:
+    project = score and q_projects.get_project(cur, score["tender_id"])
+    if project is None:                               # no such score, or project deleted
         return None
     items = q_results.items(cur, score["run_id"], score["submission_id"], score["criterion_id"])
     checks = q_results.checks(cur, [i["item_id"] for i in items])
@@ -38,7 +39,7 @@ def evidence_view(cur, score_id: str, chosen: str | None, threshold: Decimal) ->
             "groups": _groups(items, flags),
             "item": _verdict(item, score, threshold) if item else None,
             "checks": [present(c, item["facts"] or {}) for c in mine] if item else [],
-            "project": q_projects.get_project(cur, score["tender_id"])}
+            "project": project}
 
 
 def _flags(item: dict, checks: list[dict], threshold: Decimal) -> set[str]:

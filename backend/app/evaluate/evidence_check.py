@@ -38,11 +38,11 @@ def check_item(result: ItemResult, item: Item, pages: dict[int, Page],
     for name in _expand(result.relies_on):
         if result.cv and name in CV_CHECKED:
             continue
-        checks.append(_check_fact(item, name, facts.get(name), pages, settings))
+        checks.append(check_fact(item, name, facts.get(name), pages, settings))
     if result.cv:
         for n, job in enumerate(result.cv.employment, start=1):
-            checks.append(_check_fact(item, f"employment_row_{n}",
-                                      Fact(page=job.page, quote=job.quote), pages, settings))
+            checks.append(check_fact(item, f"employment_row_{n}",
+                                     Fact(page=job.page, quote=job.quote), pages, settings))
         total = experience_check(result, item, as_of)
         if total:
             checks.append(total)
@@ -78,8 +78,10 @@ def _presence(name: str, cited: list[int], item: Item) -> EvidenceCheck:
                          pdf_page_no=inside[0] if inside else None, note=note)
 
 
-def _check_fact(item: Item, name: str, fact: Fact | None, pages: dict[int, Page],
-                settings: Settings) -> EvidenceCheck:
+def check_fact(item: Item, name: str, fact: Fact | None, pages: dict[int, Page],
+               settings: Settings, kind: str | None = None) -> EvidenceCheck:
+    """kind: "amount" or "date" to check the value against its quote; by default taken
+    from the item fact names above."""
     base = {"label": item.label, "fact": name}
     if fact is None or not fact.quote or fact.page is None:
         return EvidenceCheck(**base, quote_found=False, note="no quote given")
@@ -89,19 +91,21 @@ def _check_fact(item: Item, name: str, fact: Fact | None, pages: dict[int, Page]
                              quote_found=False, note="cited page is outside the item")
     score = quote_score(fact.quote, page.full_text())
     found = score >= settings.quote_match_threshold
-    matches, parsed = _value_check(name, fact, settings)
+    default = "amount" if name in AMOUNT_FACTS else "date" if name in DATE_FACTS else None
+    matches, parsed = _value_check(kind or default, fact, settings)
     note = "" if found else "quote not found on cited page"
     return EvidenceCheck(**base, pdf_page_no=fact.page, quote=fact.quote, quote_found=found,
                          match_score=score, parsed_value=parsed, value_matches=matches, note=note)
 
 
-def _value_check(name: str, fact: Fact, settings: Settings) -> tuple[bool | None, str | None]:
+def _value_check(kind: str | None, fact: Fact,
+                 settings: Settings) -> tuple[bool | None, str | None]:
     if fact.value in (None, ""):
         return None, None
     try:
-        if name in AMOUNT_FACTS:
+        if kind == "amount":
             return amount_matches(fact.value, fact.quote or "", settings.amount_tolerance)
-        if name in DATE_FACTS:
+        if kind == "date":
             return date_matches(fact.value, fact.quote or "")
     except ValueError as err:
         return False, f"unreadable value: {err}"

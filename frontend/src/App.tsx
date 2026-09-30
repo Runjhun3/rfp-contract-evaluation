@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import Criteria from "./pages/Criteria";
+import Eligibility from "./pages/Eligibility";
+import EligibilityCheck from "./pages/EligibilityCheck";
 import Evidence from "./pages/Evidence";
 import Login from "./pages/Login";
 import NewProject from "./pages/NewProject";
@@ -28,6 +30,8 @@ export default function App() {
           <Route path="projects/:tenderId/rfp" element={<RfpUpload />} />
           <Route path="projects/:tenderId/criteria" element={<Criteria />} />
           <Route path="projects/:tenderId/participants" element={<Participants />} />
+          <Route path="projects/:tenderId/eligibility" element={<Eligibility />} />
+          <Route path="eligibility/:checkId" element={<EligibilityCheck />} />
           <Route path="runs/:runId" element={<RunProgress />} />
           <Route path="projects/:tenderId/results" element={<Results />} />
           <Route path="scores/:scoreId" element={<Evidence />} />

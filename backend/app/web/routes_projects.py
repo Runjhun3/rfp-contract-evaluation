@@ -3,8 +3,8 @@ from datetime import date
 
 from starlette.routing import Route
 
-from app import files
-from app.db import q_projects, q_runs
+from app import files, removal
+from app.db import q_bids, q_projects, q_runs
 from app.db.connection import transaction
 from app.db.repo_setup import LOCAL_USER_ID
 from app.web.auth import check_csrf
@@ -49,7 +49,8 @@ def project_head(cur, tender_id: str, current: str) -> dict | None:
         return None
     run = q_runs.latest_run(cur, tender_id)
     steps = stepper(project, current, run and run["run_id"],
-                    results_ready=q_runs.has_results(cur, tender_id))
+                    results_ready=q_runs.has_results(cur, tender_id),
+                    bids_ready=bool(q_bids.ready_submissions(cur, tender_id)))
     return {"project": project, "steps": steps, "latest_run": run}
 
 
@@ -97,10 +98,20 @@ async def upload_rfp(request):
     return ok({"doc_id": doc_id}, "RFP uploaded; reading criteria", 201)
 
 
+async def delete_project(request):
+    check_csrf(request)
+    with _db(request) as cur:
+        problem = removal.delete_project(cur, str(request.path_params["tender_id"]), LOCAL_USER_ID)
+    if problem:
+        return fail(problem, 404 if problem == "Project not found" else 409)
+    return ok(None, "Project deleted")
+
+
 routes = [
     Route("/api/v1/projects", list_projects, methods=["GET"]),
     Route("/api/v1/projects", create_project, methods=["POST"]),
     Route("/api/v1/projects/{tender_id:uuid}", open_project, methods=["GET"]),
+    Route("/api/v1/projects/{tender_id:uuid}", delete_project, methods=["DELETE"]),
     Route("/api/v1/projects/{tender_id:uuid}/rfp", rfp_page, methods=["GET"]),
     Route("/api/v1/projects/{tender_id:uuid}/rfp", upload_rfp, methods=["POST"]),
 ]

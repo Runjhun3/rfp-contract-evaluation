@@ -4,7 +4,6 @@ Every step writes JSON into run_dir and is skipped on re-run if already done.
 """
 import uuid
 from pathlib import Path
-from typing import Callable
 
 from app.config import Settings
 from app.evaluate.arithmetic_check import check_criterion
@@ -14,33 +13,26 @@ from app.evaluate.evidence_check import check_item
 from app.evaluate.flags import review_reasons
 from app.evaluate.item_eval import evaluate_item, system_prompt
 from app.ingest.build_items import build_items
-from app.ingest.label_pages import label_pages
-from app.ingest.ocr import ocr_pages
-from app.ingest.read_pages import read_pages
+from app.ingest.prepare import Stage, labelled_pages
 from app.llm.client import LlmClient
 from app.llm.prompts import versions
 from app.schemas.llm import CriterionResult, ItemResult
 from app.schemas.records import (CopyGroup, Criterion, CriterionScore, EvidenceCheck, Item,
-                                 Page, RunContext)
+                                 Page, Requirement, RunContext)
 from app.storage import cached, safe_name, sha256_file, write
-
-Stage = Callable[..., None]   # stage(name, done=0, total=0)
 
 
 def run(bid_pdf: Path, ctx: RunContext, criteria: list[Criterion], block: str,
         run_dir: Path, settings: Settings, llm: LlmClient, run_id: str | None = None,
-        on_stage: Stage | None = None) -> list[CriterionScore]:
+        on_stage: Stage | None = None,
+        requirements: list[Requirement] | None = None) -> list[CriterionScore]:
+    """requirements: the tender's eligibility requirements. Pages are labelled with them
+    too, exactly as eligibility screening labels them, so the label calls are shared."""
     stage = on_stage or (lambda name, done=0, total=0: None)
     cached(run_dir / "run.json", dict,
            lambda: _run_meta(bid_pdf, ctx, criteria, block, settings, run_id))
-    stage("READING")
-    pages = cached(run_dir / "pages_text.json", list[Page], lambda: read_pages(bid_pdf))
-    stage("OCR")
-    pages = cached(run_dir / "pages_ocr.json", list[Page],
-                   lambda: ocr_pages(bid_pdf, pages, settings, safe_name(ctx.bidder)))
-    stage("LABELLING")
-    pages = cached(run_dir / "pages_labelled.json", list[Page],
-                   lambda: label_pages(pages, criteria, llm))
+    pages = labelled_pages(bid_pdf, ctx.bidder, criteria, requirements or [], run_dir,
+                           settings, llm, stage)
     items = cached(run_dir / "items.json", list[Item],
                    lambda: build_items(pages, {c.code: c.kind for c in criteria}))
     by_no = {p.pdf_page_no: p for p in pages}

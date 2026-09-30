@@ -54,14 +54,23 @@ export function get<T>(path: string): Promise<T> {
   return call<T>("GET", path);
 }
 
-export async function post<T = null>(path: string, body?: unknown): Promise<T> {
+// A write; on a 403 the CSRF token is fetched again and the write retried once.
+async function write<T>(method: string, path: string, body?: unknown): Promise<T> {
   try {
-    return await call<T>("POST", path, body);
+    return await call<T>(method, path, body);
   } catch (err) {
     if (!(err instanceof ApiError) || err.status !== 403) throw err;
     await token(true);
-    return call<T>("POST", path, body);
+    return call<T>(method, path, body);
   }
+}
+
+export function post<T = null>(path: string, body?: unknown): Promise<T> {
+  return write<T>("POST", path, body);
+}
+
+export function del(path: string): Promise<null> {
+  return write<null>("DELETE", path);
 }
 
 // Who is signed in (null if nobody); also refreshes the CSRF token.

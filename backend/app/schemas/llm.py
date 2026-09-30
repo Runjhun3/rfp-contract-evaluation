@@ -123,7 +123,18 @@ class PageLabel(BaseModel):
     item_start: bool = False
     title: str | None = None      # project name, or person + position, on item_start pages
     gem_bid_no: str | None = None
+    eligibility: list[str] = Field(default_factory=list)   # requirements the page proves
 
 
 class PageLabels(BaseModel):
     pages: list[PageLabel]
+
+
+class EligibilityResult(BaseModel):
+    """The AI's recommendation on one eligibility requirement for one bid."""
+    code: str
+    result: str                 # MET | NOT_MET | UNSURE
+    finding: str
+    facts: dict[str, Fact | None] = Field(default_factory=dict)
+    conditions: list[Condition] = Field(default_factory=list)
+    suspicious_text: list[Suspicious] = Field(default_factory=list)

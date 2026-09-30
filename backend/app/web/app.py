@@ -11,8 +11,8 @@ from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import Settings
-from app.web import (routes_auth, routes_bids, routes_criteria, routes_evidence, routes_projects,
-                     routes_results, routes_runs, spa)
+from app.web import (routes_auth, routes_bids, routes_criteria, routes_eligibility,
+                     routes_evidence, routes_projects, routes_results, routes_runs, spa)
 from app.web.auth import Forbidden, RequireLogin
 from app.web.common import fail
 
@@ -57,8 +57,8 @@ def create_app(settings: Settings) -> Starlette:
     # The session carries the sign-in: set SESSION_SECRET, or every restart signs users out.
     session_secret = settings.session_secret or secrets.token_urlsafe(32)
     routes = [*routes_auth.routes, *routes_projects.routes, *routes_criteria.routes, *routes_bids.routes,
-              *routes_runs.routes, *routes_results.routes, *routes_evidence.routes,
-              *spa.routes()]
+              *routes_eligibility.routes, *routes_runs.routes, *routes_results.routes,
+              *routes_evidence.routes, *spa.routes()]
     middleware = [
         Middleware(SecurityHeaders, secure=settings.cookie_secure),
         Middleware(SessionMiddleware, secret_key=session_secret,

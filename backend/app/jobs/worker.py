@@ -7,12 +7,13 @@ import time
 from app.config import Settings
 from app.db import q_runs
 from app.db.connection import transaction
-from app.jobs import handlers
+from app.jobs import eligibility_job, handlers
 from app.llm.client import LlmClient
 
 log = logging.getLogger("worker")
 HANDLERS = {"EXTRACT_CRITERIA": handlers.extract_criteria,
-            "EVALUATE_SUBMISSION": handlers.evaluate_submission}
+            "EVALUATE_SUBMISSION": handlers.evaluate_submission,
+            "CHECK_ELIGIBILITY": eligibility_job.check_eligibility}
 MAX_ATTEMPTS = 3
 IDLE_SECONDS = 3
 

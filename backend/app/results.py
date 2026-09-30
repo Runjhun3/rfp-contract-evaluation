@@ -11,6 +11,7 @@ final marks; committee-scored ones (e.g. a presentation) take the committee's ma
 """
 from decimal import Decimal
 
+from app import eligibility
 from app.criteria import scoring
 from app.db import q_projects, q_results
 
@@ -25,11 +26,7 @@ def project_results(cur, tender_id: str) -> dict:
     committee = [{"criterion_id": c["criterion_id"], "code": c["code"], "title": c["title"],
                   "max_marks": c["max_marks"]} for c in tree if ways.get(c["code"]) == "COMMITTEE"]
     latest = q_results.latest_attempts(cur, tender_id)
-    done = [p for p in latest if p["stage"] == "DONE"]
-    cells: dict[str, dict] = {}
-    for s in q_results.scores(cur, [p["run_id"] for p in done],
-                              [p["submission_id"] for p in done]):
-        cells.setdefault(s["submission_id"], {})[s["code"]] = s
+    cells = _cells(cur, [p for p in latest if p["stage"] == "DONE"])
     entered = q_results.manual_marks(cur, [c["criterion_id"] for c in committee])
     def manual(submission_id: str) -> dict:
         return {c["criterion_id"]: entered.get(c["criterion_id"], {}).get(submission_id)
@@ -37,6 +34,8 @@ def project_results(cur, tender_id: str) -> dict:
 
     rows = _ranked([_row(p, cells.get(p["submission_id"], {}), manual(p["submission_id"]))
                     for p in latest])
+    screening = eligibility.overview(cur, tender_id)
+    _add_eligibility(rows, {f["submission_id"]: f for f in screening["firms"]})
     # Every mark needs the committee's approval, flagged or not.
     open_reviews = sum(1 for r in rows for c in r["cells"].values() if not c["reviewed"])
     pending = sum(1 for r in rows if r["total"] is None)
@@ -46,16 +45,44 @@ def project_results(cur, tender_id: str) -> dict:
             "pending": pending, "ready": pending < len(rows),
             "docs_max": sum((c["max_marks"] for c in ai), Decimal(0)),
             "committee_max": sum((c["max_marks"] for c in committee), Decimal(0)),
-            "export_blockers": export_blockers(rows, open_reviews, codes, committee)}
+            "export_blockers": export_blockers(rows, open_reviews, codes, committee,
+                                               screening["open"])}
+
+
+def _cells(cur, done: list[dict]) -> dict[str, dict]:
+    """Final marks of each finished participant, by submission then criterion code."""
+    cells: dict[str, dict] = {}
+    for s in q_results.scores(cur, [p["run_id"] for p in done],
+                              [p["submission_id"] for p in done]):
+        cells.setdefault(s["submission_id"], {})[s["code"]] = s
+    return cells
+
+
+def _add_eligibility(rows: list[dict], firms: dict[str, dict]) -> None:
+    """Each row's eligibility status; a firm that was not evaluated because it is not
+    qualified, or not decided yet, says so in place of marks."""
+    for row in rows:
+        firm = firms.get(row["submission_id"])
+        row["eligibility"] = firm["status"] if firm else None
+        if row["total"] is not None or firm is None or firm["status"] == "qualified":
+            continue
+        row["status"] = (firm["label"].replace("Not qualified", "Not evaluated", 1)
+                         if firm["status"] == "not_qualified"
+                         else f"Eligibility pending: {firm['label'].lower()}")
 
 
 def export_blockers(rows: list[dict], open_reviews: int, codes: list[dict],
-                    committee: list[dict]) -> list[str]:
-    """Why the committee sheet cannot be exported yet; empty when it can."""
+                    committee: list[dict], open_checks: int) -> list[str]:
+    """Why the committee sheet cannot be exported yet; empty when it can. A firm found
+    not qualified is complete without an evaluation."""
     if not rows:
         return ["No participant has been evaluated yet."]
     blockers = []
-    waiting = [r["name"] for r in rows if r["total"] is None]
+    if open_checks:
+        blockers.append(f"{open_checks} eligibility check{'s are' if open_checks > 1 else ' is'}"
+                        " not decided by the committee yet.")
+    waiting = [r["name"] for r in rows
+               if r["total"] is None and r.get("eligibility") != "not_qualified"]
     if waiting:
         blockers.append(f"No finished evaluation yet for {', '.join(waiting)}.")
     finished = [r for r in rows if r["total"] is not None]
@@ -79,6 +106,7 @@ def _row(attempt: dict, cells: dict, manual: dict) -> dict:
     docs = sum((c["marks"] for c in cells.values()), Decimal(0)) if done else None
     extra = sum((m for m in manual.values() if m is not None), Decimal(0))
     return {"submission_id": attempt["submission_id"], "name": attempt["short_name"],
+            "legal_name": attempt["legal_name"],
             "included": attempt["included"],
             "stage": attempt["stage"], "status": STATUS.get(attempt["stage"], EVALUATING),
             "cells": cells if done else {}, "docs": docs, "manual": manual, "rank": None,

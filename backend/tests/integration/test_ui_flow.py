@@ -5,10 +5,6 @@ Needs: PostgreSQL (DB_* env pointing at a throw-away database; its public schema
 is dropped and recreated), and the NSDF PDFs in data/golden/nsdf/.
 Run: pytest -m integration
 """
-import json
-import re
-from pathlib import Path
-
 import pytest
 from starlette.testclient import TestClient
 
@@ -18,65 +14,9 @@ from app.db.migrate import migrate
 from app.jobs.worker import run_once
 from app.llm.client import LlmClient
 from app.web.app import create_app
+from tests.integration.scripted_llm import BID, RFP, fake_all
 
 pytestmark = pytest.mark.integration
-DATA = Path(__file__).resolve().parents[3] / "data" / "golden" / "nsdf"
-RFP, BID = DATA / "RFP_Document_NSDF.pdf", DATA / "Deloitte all docs.pdf"
-SECTIONS = [(75, 181, "A.1"), (182, 250, "A.2"), (251, 334, "A.3")]
-
-def label(user):
-    out = []
-    for n, body in re.findall(r"\[PDF p\. (\d+)\]\n(.*?)(?=\n\n\[PDF p\. |\Z)", user, re.S):
-        n = int(n); head = body.strip()[:200]
-        code = next((c for a, b, c in SECTIONS if a <= n <= b), None)
-        row = {"pdf_page_no": n, "page_type": "OTHER"}
-        if re.search(r"Credential-\d+:", head) and code:
-            row.update(page_type="PROJECT_HEADER", criterion_code=code, map_confidence=0.9, item_start=True)
-        elif "Proposed CV for Program Manager" in head:
-            row.update(page_type="CV", criterion_code="B.1", map_confidence=0.9, item_start=True)
-        elif re.search(r"Proposed CV (of|for) Senior Consultant", head):
-            row.update(page_type="CV", criterion_code="B.2", map_confidence=0.9, item_start=True)
-        out.append(row)
-    return json.dumps({"pages": out})
-
-def item(user):
-    code = re.search(r"Submitted under criterion: (\S+)", user).group(1)
-    label_ = re.search(r"Item: (.+?) \(", user).group(1)
-    first = re.search(r"\[PDF p\. (\d+)\]\n(.*?)\n", user, re.S)
-    page, quote = int(first.group(1)), first.group(2).strip()[:60] or "x"
-    marks = {"A.1": "2", "A.2": "2", "A.3": "2.5", "B.1": "8", "B.2": "7"}[code]
-    return json.dumps({"label": label_, "code": code, "eligible": True, "marks": marks,
-        "reason": "scripted", "confidence": 0.9, "relies_on": ["client"],
-        "evidence": {"work_order": [page], "completion_or_ca": [page]},
-        "facts": {"client": {"value": "c", "page": page, "quote": quote}}})
-
-def criterion(user):
-    mx = re.search(r"Max items: (\S+)\.", user).group(1); mx = int(mx) if mx.isdigit() else 99
-    rows = json.loads(user.split("ITEM RESULTS\n", 1)[1])
-    items = [dict(r, counted=i < mx) for i, r in enumerate(rows)]
-    total = sum(float(r["marks"]) for r in items if r["counted"])
-    return json.dumps({"code": re.search(r"criterion (\S+) for", user).group(1), "items": items,
-                       "counted_items": min(len(rows), mx), "marks": str(total), "summary": "scripted"})
-
-
-def fake(system, user, images=()):
-    if "label pages" in system: return label(user)
-    if "Submitted under criterion" in user: return item(user)
-    return criterion(user)
-
-
-GOLD = json.load(open(Path(__file__).resolve().parents[1] / 'golden/nsdf/criteria.json'))["criteria"]
-def extraction(user):
-    rows = [dict(code=c["code"], parent=c["code"][0], stage="TECHNICAL", title=c["title"],
-                 rfp_text="[verbatim clause]", meaning=c["meaning"], max_marks=c["max_marks"],
-                 max_items=c["max_items"], kind=c["kind"], item_marks=c["allowed_item_marks"],
-                 scored_by="LLM", rfp_page=34) for c in GOLD]
-    rows.append(dict(code="C", stage="PRESENTATION", title="Technical presentation", rfp_text="[clause]",
-                     meaning="Presentation and interview", max_marks="35", scored_by="COMMITTEE"))
-    rows.append(dict(code="E.1", stage="ELIGIBILITY", title="EMD", rfp_text="[clause]", meaning="EMD paid"))
-    return json.dumps({"criteria": rows})
-def fake_all(system, user, images=()):
-    return extraction(user) if "extract evaluation criteria" in system else fake(system, user)
 
 
 @pytest.mark.skipif(not (RFP.exists() and BID.exists()), reason="NSDF PDFs not in data/golden/nsdf")
@@ -125,6 +65,23 @@ def test_full_flow(tmp_path):
     ok(r.status_code == 201, "bid uploaded")
     part = data(c.get(base + "/participants"))
     ok(part["submissions"][0]["page_count"] == 464 and part["ready"] == 1 and part["approved"], "participant ready")
+    elig = data(c.get(base + "/eligibility"))
+    ok(elig["checking"] == 1 and elig["firms"][0]["status"] == "checking",
+       "eligibility check queued on upload")
+    ok(c.post(base + "/runs").status_code == 409, "no evaluation before a firm is qualified")
+    ok(run_once(s, llm), "worker: check eligibility")
+    firm = data(c.get(base + "/eligibility"))["firms"][0]
+    ok(firm["status"] == "open" and firm["cells"][0]["result"] == "MET",
+       "AI check awaits the committee")
+    check = firm["cells"][0]["check_id"]
+    ok(data(c.get(f"/api/v1/eligibility/{check}"))["check"]["pages"] == [1],
+       "firm page with its proof page")
+    decide = f"/api/v1/eligibility/{check}/decision"
+    r = c.post(decide, json={"decision": "NOT_MET", "reason": "no"})
+    ok(r.status_code == 400 and "disagree" in r.json()["message"], "disagreeing needs a reason")
+    r = c.post(decide, json={"decision": "MET"})
+    ok(r.status_code == 201, "confirming the AI needs no reason")
+    ok(data(c.get(base + "/eligibility"))["qualified"] == 1, "firm qualified")
     r = c.post(base + "/runs"); ok(r.status_code == 201, "run started"); run = f"/api/v1/runs/{data(r)['run_id']}"
     ok(data(c.get(run))["rows"][0]["label"] == "Waiting to start", "progress page")
     ok(run_once(s, llm), "worker: evaluate Deloitte")

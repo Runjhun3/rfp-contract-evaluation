@@ -1,4 +1,5 @@
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import BidPage from "../components/BidPage";
 import DecisionForm from "../components/DecisionForm";
 import EvidenceChecks from "../components/EvidenceChecks";
 import ItemList from "../components/ItemList";
@@ -52,17 +53,7 @@ export default function Evidence() {
           {item && <EvidenceChecks item={item} checks={data.checks} pageLink={at} />}
           <DecisionForm key={item?.item_id ?? "criterion"} score={score} item={item} onSaved={reload} />
         </section>
-        <section className="viewer" aria-label={`Bid page ${pageNo}`}>
-          <div className="spread">
-            <strong>Bid page {pageNo}</strong>
-            <span className="row">
-              {pageNo > 1 && <Link className="btn small" to={at(pageNo - 1)} aria-label="Previous page">‹</Link>}
-              <Link className="btn small" to={at(pageNo + 1)} aria-label="Next page">›</Link>
-            </span>
-          </div>
-          <img className="pageimg" src={`/api/v1/submissions/${score.submission_id}/pages/${pageNo}.png`}
-            alt={`Page ${pageNo} of ${score.short_name}'s bid`} />
-        </section>
+        <BidPage submissionId={score.submission_id} firm={score.short_name} pageNo={pageNo} pageLink={at} />
       </main>
     </>
   );

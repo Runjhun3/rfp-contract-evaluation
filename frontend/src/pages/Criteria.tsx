@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { post } from "../api";
 import CriteriaTable from "../components/CriteriaTable";
+import EligibilityTable from "../components/EligibilityTable";
+import Section from "../components/Section";
 import { usePageTitle } from "../components/Layout";
 import ProjectHead from "../components/ProjectHead";
 import { ErrorText, Loading } from "../components/Status";
@@ -11,6 +13,9 @@ import { useApi } from "../useApi";
 
 // While the worker is still reading the RFP there are no criteria: check again every 10 s.
 const waitForCriteria = (d: CriteriaPage) => (d.criteria.length ? null : 10000);
+// Screened rows (eligibility criteria, required documents) are not scored: each kind has
+// its own table above the scored criteria.
+const isScreened = (c: Criterion) => c.stage === "ELIGIBILITY" || c.stage === "DOCUMENT";
 
 export default function Criteria() {
   const { tenderId } = useParams();
@@ -62,18 +67,23 @@ export default function Criteria() {
           </div>
         ) : (
           <>
-            <div className="spread">
-              <p className="sub">Check each criterion against the RFP. Marks, limits and the rule text below are what the evaluator applies.</p>
-              <span className="chip blue num">Scored criteria total {marks(data.technical_total)}</span>
-            </div>
+            <p className="sub">Check each criterion against the RFP. Marks, limits and the rule text below are what the evaluator applies.</p>
             <form className="page-form" onSubmit={save}>
-              <CriteriaTable rows={rows} saved={data.criteria} onChange={setRows} />
-              <section className="card">
-                <h2>Rule text used by the evaluator{prompt && ` · version ${prompt.version} (${prompt.status.toLowerCase()})`}</h2>
+              {(["ELIGIBILITY", "DOCUMENT"] as const).map((stage) => rows.some((c) => c.stage === stage) && (
+                <EligibilityTable key={stage} stage={stage} rows={rows.filter((c) => c.stage === stage)}
+                  onChange={(changed) => setRows([...changed, ...rows.filter((c) => c.stage !== stage)])} />
+              ))}
+              <Section title="Evaluation criteria · marks"
+                aside={<span className="chip blue num">Scored criteria total {marks(data.technical_total)}</span>}>
+                <CriteriaTable rows={rows.filter((c) => !isScreened(c))}
+                  saved={data.criteria.filter((c) => !isScreened(c))}
+                  onChange={(changed) => setRows([...rows.filter(isScreened), ...changed])} />
+              </Section>
+              <Section title={<>Rule text used by the evaluator{prompt && ` · version ${prompt.version} (${prompt.status.toLowerCase()})`}</>}>
                 <p className="small muted">Only criteria marked "Scored per: Project/CV" and "AI + committee" are evaluated from the bids.</p>
                 <label className="sr-only" htmlFor="block">Rule text</label>
                 <textarea id="block" rows={16} value={block} onChange={(e) => setBlock(e.target.value)} />
-              </section>
+              </Section>
               <div><button className="btn" type="submit" disabled={busy}>Save changes</button></div>
             </form>
           </>

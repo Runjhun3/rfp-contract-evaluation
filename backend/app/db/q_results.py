@@ -7,7 +7,7 @@ def latest_attempts(cur, tender_id: str) -> list[dict]:
     evaluation (run and stage); stage NOT_STARTED when it was never evaluated. A firm
     unticked only to leave it out of a later run keeps its results."""
     return all_rows(cur, """
-        select s.submission_id::text, b.short_name, s.included, x.run_id::text,
+        select s.submission_id::text, b.short_name, b.legal_name, s.included, x.run_id::text,
                coalesce(x.stage, 'NOT_STARTED') as stage
         from bid_submission s join bidder b using (bidder_id)
         left join lateral (select rs.run_id, rs.stage from run_submission rs
@@ -103,21 +103,31 @@ def bid_file_key(cur, submission_id: str) -> str | None:
 
 
 def export_items(cur, run_ids: list[str], submission_ids: list[str]) -> list[dict]:
-    """Every item claimed in each (run, participant) pair, for the exported sheet."""
+    """Every item claimed in each (run, participant) pair, for the exported sheet: the
+    AI's marks, the committee's latest decision and the final marks (final_item)."""
     return all_rows(cur, """
         select i.submission_id::text, c.code, i.title, i.label, i.from_page, i.to_page,
-               r.counted, r.eligible, r.marks, coalesce(r.count_reason, r.reason) as reason
+               r.counted, r.eligible, r.marks, coalesce(r.count_reason, r.reason) as reason,
+               f.marks as final_marks, f.counted as final_counted,
+               d.action, d.reason as decision_reason
         from bid_item i join criterion c using (criterion_id)
         left join item_result r using (item_id)
+        left join final_item f on f.item_id = i.item_id
+        left join lateral (select x.action, x.reason from review_decision x
+                           where x.item_id = i.item_id
+                           order by x.decided_at desc limit 1) d on true
         join unnest(%s::uuid[], %s::uuid[]) as p(run_id, submission_id)
           on p.run_id = i.run_id and p.submission_id = i.submission_id
-        order by c.code, i.from_page""", (run_ids, submission_ids))
+        order by i.submission_id, c.code, i.from_page""", (run_ids, submission_ids))
 
 
 def export_decisions(cur, score_ids: list[str]) -> list[dict]:
-    """Every committee decision on the given scores, oldest first."""
+    """Every committee decision on the given scores, oldest first, with the item it was
+    about (none for a decision on the whole criterion)."""
     return all_rows(cur, """
         select d.score_id::text, d.action, d.final_marks, d.reason, u.full_name,
-               to_char(d.decided_at, 'DD Mon YYYY HH24:MI') as decided
+               to_char(d.decided_at, 'DD Mon YYYY HH24:MI') as decided,
+               i.title, i.label, i.from_page, i.to_page
         from review_decision d join app_user u on u.user_id = d.reviewer
+        left join bid_item i on i.item_id = d.item_id
         where d.score_id = any(%s::uuid[]) order by d.decided_at""", (score_ids,))

@@ -3,6 +3,80 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-049 A firm's last eligibility results stay shown while it is checked again (2026-09-30)
+Checking again (or replacing a bid) blanked the firm's row until the new check ended, so
+a firm already decided as qualified disappeared. Now its last finished checks, their
+decisions and its status stay on display, marked "Checking again…", until the new checks
+replace them; the firm is not offered for evaluation meanwhile, since its bid may have
+changed. Once the new check is over, only checks of the latest bid file count.
+A firm unticked on the participants page keeps its eligibility results on screen
+too (as on the results page), marked unticked; it is not re-checked or evaluated.
+
+## D-048 The committee can reclassify a row between eligibility and required documents (2026-09-30)
+Whether a document is pass/fail is the committee's call, not only the RFP's wording
+(e.g. it may treat a missing power of attorney as disqualifying). Each screened row on
+the Criteria page has "Counts as": eligibility criterion or required document. Only a
+screened row can move, and only between those two (`app/criteria.py` `edited_stage`);
+saving creates a new rule-text version to approve, as any criteria edit does. Firm
+statuses follow at once and no check is re-run: checks do not depend on the stage.
+
+## D-047 Screened rows show the RFP's own numbers; the E.x / D.x codes stay the key (2026-09-30)
+The committee reads eligibility as the RFP numbers it (1, 2, 3 …; a documents list
+A, B, C …), not as E.1 / D.1. Those RFP numbers clash across lists (a documents list's
+"A" and technical criterion A), so the internal code stays the unique key and
+extraction v6 copies the number the RFP prints into `criterion.rfp_no` (migration 013);
+every screen and the exported sheet show it, and the code when the RFP numbers
+nothing. No numbering scheme is assumed.
+
+## D-046 Required documents are screened apart from eligibility; not disqualifying (2026-09-30)
+RFPs list documents every bid must include (a signed bid form, a power of attorney,
+an acceptance of terms) apart from the eligibility / pre-qualification criteria, and
+only the latter make a bid non-responsive. Treating the whole list as pass/fail went
+further than the RFP; the committee checked most of the documents but did not
+disqualify on them. Extraction v5 returns such documents as stage DOCUMENT (codes D.1,
+D.2 ...) and drops anything the RFP marks not applicable (migration 012 allows the
+stage). Documents are checked and decided like eligibility criteria, but only
+eligibility criteria decide who is qualified; a document decided as not submitted is
+flagged on the firm ("Missing: D.2"). Undecided documents still hold the export.
+
+## D-045 Eligibility screening before evaluation; the committee decides every check (2026-09-30)
+Eligibility rows were extracted but never used, so firms that fail a pass/fail
+requirement were evaluated (and paid for) like the rest. RFPs state a requirement in
+one annexure and list its proof in another; extraction v4 joins them (`criterion.proof`)
+and copies defining conditions (e.g. "fit and proper person") in full. Labelling v4 tags
+the pages that prove each requirement; one AI check per bid and requirement returns
+met / not met / unsure with quotes, and Python verifies quotes, amounts, dates and tests
+as for items. Every check is only a recommendation: the committee decides each one (a
+reason when the AI was unsure or the committee disagrees), and only firms decided as
+meeting every requirement are evaluated. A check belongs to one bid file: replacing a
+bid, or checking again, needs new decisions. Checks are not part of an evaluation run,
+so each row carries its own prompt version and model instead of a run_id. Not built
+yet: an "approve all" shortcut and highlighting the quote on the page image.
+Consequence: extraction and labelling prompts changed, so existing projects need their
+criteria re-extracted and approved again, and bids are labelled afresh once.
+
+## D-044 Exported sheet is laid out firm by firm (2026-09-30)
+The Items and Decisions sheets mixed every firm together, showed the AI's item marks
+rather than the final ones, and did not say which item a decision was about. The
+workbook is now a Summary sheet (criteria x firms, totals, rank; marks only) followed
+by one sheet per firm in rank order: each criterion with its final marks and whether
+they were approved or entered, every item the firm claimed with the AI's marks, the
+committee's latest decision and reason and the final marks, then the firm's full
+decision log (every decision, oldest first, naming its item). Sheet names are the
+firms' short names, made valid and unique for Excel.
+
+## D-043 Deleting a project hides it; a firm is deleted only when unused (2026-09-30)
+Projects created by mistake or for testing cluttered the list, and firms added with a
+typo stayed in the shared firm list. Deleting a project sets `tender.deleted_at`
+(migration 010): it leaves the projects list and every project, run and evidence page,
+but its bids, runs, scores and committee decisions stay (rule 10: never deleted). It is
+refused while a job for the project is waiting or running. A firm is removed from the
+shared list only when no project, deleted ones included, holds its bid file, an
+evaluation or committee marks; the empty participant rows of projects it was merely
+ticked in go with it. A firm in use stays, and unticking leaves it out of one project.
+Consequence: a deleted project can only be restored in the database (clear
+`deleted_at`); there is no restore button yet.
+
 ## D-042 Sign-in with one account from .env; product name BidLens (2026-09-29)
 Supersedes D-024 (no login). The app is going onto a VM, and "anyone who can reach
 the URL can do everything" is not acceptable for confidential bids and CVs.

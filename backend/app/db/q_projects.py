@@ -18,7 +18,8 @@ def list_projects(cur, page: int) -> list[dict]:
                                    where x.submission_id = f.submission_id
                                    order by r.created_at desc limit 1)) as open_reviews,
                to_char(t.created_at, 'DD Mon YYYY') as created
-        from tender t order by t.created_at desc limit %s offset %s""",
+        from tender t where t.deleted_at is null
+        order by t.created_at desc limit %s offset %s""",
         (PAGE_SIZE + 1, (page - 1) * PAGE_SIZE))
 
 
@@ -34,7 +35,20 @@ def get_project(cur, tender_id: str) -> dict | None:
     return one_row(cur, """select tender_id::text, name, gem_bid_no, department, status,
                                   bid_due_date::text as bid_due_date,
                                   to_char(bid_due_date, 'DD Mon YYYY') as due
-                           from tender where tender_id = %s""", (tender_id,))
+                           from tender where tender_id = %s and deleted_at is null""",
+                  (tender_id,))
+
+
+def open_jobs(cur, tender_id: str) -> int:
+    """Jobs for the project still waiting or running (reading the RFP, evaluating)."""
+    return one_row(cur, """select count(*) as n from job
+                           where tender_id = %s and status in ('PENDING', 'RUNNING')""",
+                   (tender_id,))["n"]
+
+
+def mark_deleted(cur, tender_id: str, user_id: str) -> None:
+    cur.execute("update tender set deleted_at = now(), deleted_by = %s where tender_id = %s",
+                (user_id, tender_id))
 
 
 def set_status(cur, tender_id: str, status: str) -> None:
@@ -62,29 +76,52 @@ def criteria(cur, tender_id: str) -> list[dict]:
     return all_rows(cur, """
         select criterion_id::text, code, parent_code, stage, kind, title, rfp_text, meaning,
                trim_scale(max_marks) as max_marks, max_items, scored_by, rfp_page, count_bands,
+               rfp_no,
                array_to_string(array(select trim_scale(m) from unnest(allowed_item_marks) m),
                                ', ') as allowed
-        from criterion where tender_id = %s order by stage desc, code""", (tender_id,))
+        from criterion
+        where tender_id = %s
+          and not (stage in ('ELIGIBILITY', 'DOCUMENT') and retired)
+        order by stage desc, code""", (tender_id,))
+
+
+def criterion_rows(cur, tender_id: str) -> list[dict]:
+    """Every criterion as the worker needs it (exact numbers and lists, in code order)."""
+    return all_rows(cur, """select criterion_id::text, code, parent_code, stage, scored_by,
+                                   title, meaning, kind, rfp_text, max_marks, max_items,
+                                   allowed_item_marks, count_bands, proof
+                            from criterion
+                            where tender_id = %s
+                              and not (stage in ('ELIGIBILITY', 'DOCUMENT') and retired)
+                            order by code""", (tender_id,))
 
 
 def drop_stale_criteria(cur, tender_id: str, codes: list[str]) -> None:
     """After a re-extraction: remove criteria the RFP no longer yields. A row that a
-    run, bid item or committee mark refers to is kept (history is never deleted)."""
+    run, bid item, committee mark or eligibility check refers to is kept (history is
+    never deleted); such a screened row is retired, so it is no longer screened."""
     cur.execute("""delete from criterion c where c.tender_id = %s and not (c.code = any(%s))
                      and not exists (select 1 from bid_item i where i.criterion_id = c.criterion_id)
                      and not exists (select 1 from criterion_score s
                                      where s.criterion_id = c.criterion_id)
                      and not exists (select 1 from manual_score m
-                                     where m.criterion_id = c.criterion_id)""",
+                                     where m.criterion_id = c.criterion_id)
+                     and not exists (select 1 from eligibility_check e
+                                     where e.criterion_id = c.criterion_id)""",
                 (tender_id, codes))
+    cur.execute("""update criterion set retired = not (code = any(%s))
+                   where tender_id = %s
+                     and stage in ('ELIGIBILITY', 'DOCUMENT')""",
+                (codes, tender_id))
 
 
 def update_criterion(cur, criterion_id: str, fields: dict) -> None:
     cur.execute("""update criterion set meaning = %s, kind = %s, max_marks = %s, max_items = %s,
-                     allowed_item_marks = %s::numeric[], scored_by = %s
+                     allowed_item_marks = %s::numeric[], scored_by = %s, stage = %s
                    where criterion_id = %s""",
                 (fields["meaning"], fields["kind"] or None, fields["max_marks"],
-                 fields["max_items"], fields["allowed"], fields["scored_by"], criterion_id))
+                 fields["max_items"], fields["allowed"], fields["scored_by"], fields["stage"],
+                 criterion_id))
 
 
 def latest_prompt(cur, tender_id: str) -> dict | None:

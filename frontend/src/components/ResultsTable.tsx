@@ -35,7 +35,8 @@ export default function ResultsTable({ data, entered, onEnter }: Props) {
       </thead>
       <tbody>
         {data.rows.map((r, i) => (
-          <tr key={r.submission_id}>
+          // A firm found not qualified is never evaluated: greyed, with the reason, no rank.
+          <tr key={r.submission_id} className={r.eligibility === "not_qualified" ? "out" : undefined}>
             <td><strong>{r.rank ?? "—"}</strong></td>
             <td>
               <strong>{r.name}</strong>
@@ -46,6 +47,7 @@ export default function ResultsTable({ data, entered, onEnter }: Props) {
             <td className="right"><strong>{marks(r.docs)}</strong></td>
             {data.committee.map((c, j) => {
               const key = `${c.criterion_id}/${r.submission_id}`;
+              if (r.eligibility === "not_qualified") return <td key={c.criterion_id} className="right muted">—</td>;
               return (
                 <td key={c.criterion_id} className="right">
                   <label className="sr-only" htmlFor={`m${i}-${j}`}>{c.code} marks for {r.name}</label>

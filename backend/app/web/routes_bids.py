@@ -1,7 +1,7 @@
 """API: pick firms, add a firm, upload or replace each bid."""
 from starlette.routing import Route
 
-from app import files
+from app import eligibility, files, removal
 from app.db import q_bids, q_projects
 from app.db.connection import transaction
 from app.db.repo_setup import LOCAL_USER_ID
@@ -67,12 +67,23 @@ async def upload_bid(request):
     files.put(request.app.state.settings, key, data)
     with _db(request) as cur:
         q_bids.add_file(cur, submission_id, name, key, sha, pages, LOCAL_USER_ID)
-    return ok(None, "Bid uploaded", 201)
+        checking = eligibility.queue_checks(cur, sub["tender_id"], [submission_id])
+    return ok(None, "Bid uploaded; checking eligibility" if checking else "Bid uploaded", 201)
+
+
+async def delete_firm(request):
+    check_csrf(request)
+    with _db(request) as cur:
+        problem = removal.delete_firm(cur, str(request.path_params["bidder_id"]))
+    if problem:
+        return fail(problem, 404 if problem == "Firm not found" else 409)
+    return ok(None, "Firm deleted")
 
 
 routes = [
     Route("/api/v1/projects/{tender_id:uuid}/participants", participants_page, methods=["GET"]),
     Route("/api/v1/projects/{tender_id:uuid}/participants", set_participants, methods=["POST"]),
     Route("/api/v1/projects/{tender_id:uuid}/firms", add_firm, methods=["POST"]),
+    Route("/api/v1/firms/{bidder_id:uuid}", delete_firm, methods=["DELETE"]),
     Route("/api/v1/submissions/{submission_id:uuid}/file", upload_bid, methods=["POST"]),
 ]

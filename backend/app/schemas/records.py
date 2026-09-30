@@ -34,6 +34,16 @@ class Criterion(BaseModel):
     count_bands: list[CountBand] = []     # marks by number of qualifying items
 
 
+class Requirement(BaseModel):
+    """One eligibility requirement (pass/fail), with the proof the RFP asks for."""
+    criterion_id: str
+    code: str
+    title: str
+    meaning: str
+    rfp_text: str = ""
+    proof: str | None = None
+
+
 class Page(BaseModel):
     pdf_page_no: int
     text: str
@@ -46,6 +56,7 @@ class Page(BaseModel):
     map_confidence: float | None = None
     item_start: bool = False
     title: str | None = None
+    eligibility: list[str] = []           # codes of the eligibility requirements it proves
 
     def full_text(self) -> str:
         if not self.ocr_text:

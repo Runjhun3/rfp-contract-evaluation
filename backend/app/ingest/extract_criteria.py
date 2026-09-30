@@ -29,6 +29,8 @@ class ExtractedCriterion(BaseModel):
     kind: str | None = None
     item_marks: list[str] = Field(default_factory=list)
     count_bands: list[dict] = Field(default_factory=list)   # {"min", "max", "marks"}
+    proof: str | None = None       # eligibility: the documents the RFP asks for as proof
+    rfp_no: str | None = None      # screened rows: the number the RFP prints ("3", "B")
     scored_by: str = "LLM"
     rfp_page: int | None = None
 
@@ -57,19 +59,24 @@ def extract(pages: list[Page], llm: LlmClient) -> Extracted:
 
 
 def merge(rows: list[ExtractedCriterion]) -> list[ExtractedCriterion]:
-    """One row per code across chunks. Eligibility rows are renumbered E.1, E.2 ... in
-    the order found, so two chunks that both start at E.1 do not overwrite each other;
-    the same eligibility title found twice is kept once."""
+    """One row per code across chunks. Eligibility rows are renumbered E.1, E.2 ... and
+    required documents D.1, D.2 ... in the order found, so two chunks that both start
+    at E.1 do not overwrite each other; the same title found twice is kept once, with
+    the proof whichever chunk named it."""
     scored: dict[str, ExtractedCriterion] = {}
-    eligibility: dict[str, ExtractedCriterion] = {}
+    screened: dict[str, dict[str, ExtractedCriterion]] = {"ELIGIBILITY": {}, "DOCUMENT": {}}
     for c in rows:
-        if c.stage == "ELIGIBILITY":
-            eligibility.setdefault(" ".join(c.title.lower().split()), c)
+        if c.stage in screened:
+            kept = screened[c.stage].setdefault(" ".join(c.title.lower().split()), c)
+            kept.proof = kept.proof or c.proof
+            kept.rfp_no = kept.rfp_no or c.rfp_no
         else:
             scored.setdefault(c.code, c)
-    for n, c in enumerate(eligibility.values(), start=1):
-        c.code, c.parent = f"E.{n}", None
-    return [*eligibility.values(), *scored.values()]
+    for prefix, stage in (("E", "ELIGIBILITY"), ("D", "DOCUMENT")):
+        for n, c in enumerate(screened[stage].values(), start=1):
+            c.code, c.parent = f"{prefix}.{n}", None
+    return [*screened["ELIGIBILITY"].values(), *screened["DOCUMENT"].values(),
+            *scored.values()]
 
 
 def decimal_or_none(value: str | None) -> Decimal | None:

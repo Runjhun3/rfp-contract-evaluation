@@ -1,0 +1,14 @@
+/* Collapsible cards (components/Section.tsx): the heading opens and closes the card. */
+.page-form { display: flex; flex-direction: column; gap: 22px; }   /* same gap as .page */
+details.card.section { display: block; }
+details.section > summary { display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: space-between; gap: 8px 16px; cursor: pointer; list-style: none; }
+details.section > summary h2 { flex: 1 1 16em; }     /* on a narrow screen the chip wraps below */
+details.section > summary::-webkit-details-marker { display: none; }
+details.section > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px;
+  border-radius: 4px; }
+details.section > summary h2::before { content: "▸"; display: inline-block; width: 1em;
+  margin-right: 6px; color: var(--muted); transition: transform 0.15s; }
+details.section[open] > summary h2::before { transform: rotate(90deg); }
+details.section > .section-body { display: flex; flex-direction: column; gap: 16px;
+  margin-top: 16px; }

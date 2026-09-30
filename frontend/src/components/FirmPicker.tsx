@@ -1,15 +1,17 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import type { ParticipantsPage } from "../types";
+import type { Firm, ParticipantsPage } from "../types";
 
 type Props = {
   data: ParticipantsPage; search: string; busy: boolean;
   onSave: (bidderIds: string[]) => void;
   onAdd: (firm: { legal_name: string; short_name: string }) => void;
+  onDelete: (firm: Firm) => void;
 };
 
-// "Who submitted bids?": search firms, tick the participants, add a new firm.
-export default function FirmPicker({ data, search, busy, onSave, onAdd }: Props) {
+// "Who submitted bids?": search firms, tick the participants, add a new firm, delete a
+// firm that no project holds a bid or results for (e.g. one added by mistake).
+export default function FirmPicker({ data, search, busy, onSave, onAdd, onDelete }: Props) {
   const navigate = useNavigate();
   const [query, setQuery] = useState(search);
   // Participants hidden by the search stay chosen, so saving never drops them.
@@ -46,9 +48,16 @@ export default function FirmPicker({ data, search, busy, onSave, onAdd }: Props)
       </form>
       <form onSubmit={(e) => { e.preventDefault(); onSave([...chosen]); }}>
         {data.firms.length ? data.firms.map((f) => (
-          <label key={f.bidder_id} className={`check${chosen.has(f.bidder_id) ? " on" : ""}`}>
-            <input type="checkbox" checked={chosen.has(f.bidder_id)} onChange={() => toggle(f.bidder_id)} /> {f.legal_name}
-          </label>
+          <div key={f.bidder_id} className="firm">
+            <label className={`check${chosen.has(f.bidder_id) ? " on" : ""}`}>
+              <input type="checkbox" checked={chosen.has(f.bidder_id)} onChange={() => toggle(f.bidder_id)} /> {f.legal_name}
+            </label>
+            <button className="btn small quiet" type="button" onClick={() => onDelete(f)}
+              disabled={busy || f.bids > 0} aria-label={`Delete firm ${f.legal_name}`}
+              title={f.bids > 0 ? `Has a bid or results in ${f.bids} project(s); untick it instead` : "Delete this firm"}>
+              Delete
+            </button>
+          </div>
         )) : <p className="muted">No firms yet. Add one below.</p>}
         {data.firms.length > 0 && (
           <>

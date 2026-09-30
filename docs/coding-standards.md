@@ -31,7 +31,8 @@ CLAUDE.md is the index that points here.
    the result and its confidence. (Regex is fine for parsing numbers and
    dates inside a verified quote.)
 10. Append-only for decisions: never UPDATE or DELETE `claim`,
-   `criterion_score` or `review_decision`. A re-run writes new rows.
+   `criterion_score`, `review_decision`, `eligibility_check` or
+   `eligibility_decision`. A re-run writes new rows.
 
 ## Prompt rules
 - Every LLM prompt is a separate file in `backend/prompts/`, named
