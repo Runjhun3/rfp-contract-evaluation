@@ -51,6 +51,12 @@ export default function RunProgress() {
           ))}
         </tbody>
       </table>
+      {data.left_out.length > 0 && (
+        <div className="notice info">
+          <strong>Not in this run:</strong> {data.left_out.map((f) => `${f.name} (${f.label.toLowerCase()})`).join(" · ")}.
+          {" "}Only firms the committee found eligible are evaluated.
+        </div>
+      )}
       <div className="two">
         <div className="card">
           <h2>Check each item</h2>

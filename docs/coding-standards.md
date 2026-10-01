@@ -31,7 +31,8 @@ CLAUDE.md is the index that points here.
    the result and its confidence. (Regex is fine for parsing numbers and
    dates inside a verified quote.)
 10. Append-only for decisions: never UPDATE or DELETE `claim`,
-   `criterion_score` or `review_decision`. A re-run writes new rows.
+   `criterion_score`, `review_decision`, `eligibility_check` or
+   `eligibility_decision`. A re-run writes new rows.
 
 ## Prompt rules
 - Every LLM prompt is a separate file in `backend/prompts/`, named
@@ -47,8 +48,11 @@ CLAUDE.md is the index that points here.
   `evaluation_prompt.criteria_block` and approved by a human. They are not
   files.
 - Every prompt ends with the exact JSON shape to return. Every response is
-  parsed into a Pydantic model. Invalid JSON → one retry with the parse
-  error appended → then the job fails. Never guess or repair it by hand.
+  parsed into a Pydantic model. When a response holds several complete JSON
+  objects (the model corrected itself), the last one that fits the model is
+  used. No usable object → one retry with the parse error appended → then the
+  job fails, and both answers are dropped from the cache. Never guess or
+  repair JSON by hand.
 - Placeholders use `{{name}}` and are filled by `llm/prompts.py` only. A
   missing placeholder raises an error.
 

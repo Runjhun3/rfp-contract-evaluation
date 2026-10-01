@@ -13,10 +13,10 @@ from starlette.responses import JSONResponse
 MAX_UPLOAD_BYTES = 150 * 1024 * 1024
 
 STEPS = [("rfp", "Details & RFP"), ("criteria", "Criteria"),
-         ("participants", "Participants & bids"), ("evaluate", "Evaluate"),
-         ("results", "Results & review")]
+         ("participants", "Participants & bids"), ("eligibility", "Eligibility"),
+         ("evaluate", "Evaluate"), ("results", "Results & review")]
 STATUS_STEP = {"DRAFT": 0, "RFP_UPLOADED": 1, "CRITERIA_READY": 1, "PROMPT_APPROVED": 2,
-               "EVALUATING": 3, "REVIEW": 4, "CLOSED": 4}
+               "EVALUATING": 4, "REVIEW": 5, "CLOSED": 5}
 
 
 def format_marks(value) -> str:
@@ -47,20 +47,27 @@ def fail(message: str, status_code: int = 400) -> ApiResponse:
 
 
 def stepper(project: dict, current: str, run_id: str | None,
-            results_ready: bool = False) -> list[dict]:
+            results_ready: bool = False, bids_ready: bool = False) -> list[dict]:
     """Steps of one project; `url` is the React route, None while a step is locked.
-    results_ready: a participant has a finished evaluation, so Results opens even while
-    another run is going."""
+    Eligibility opens with Participants, once the criteria are approved: bids are
+    screened as they are uploaded. results_ready: a participant has a finished
+    evaluation, so Results opens even while another run is going. bids_ready: a
+    participant's bid is uploaded, so Participants is done once the criteria are
+    approved (the project's status only moves on when an evaluation starts)."""
     reached = STATUS_STEP.get(project["status"], 0)
     base = f"/projects/{project['tender_id']}"
     urls = {"rfp": f"{base}/rfp", "criteria": f"{base}/criteria",
-            "participants": f"{base}/participants",
+            "participants": f"{base}/participants", "eligibility": f"{base}/eligibility",
             "evaluate": f"/runs/{run_id}" if run_id else None,
             "results": f"{base}/results"}
-    open_early = {"results"} if results_ready else set()
+    approved = reached >= STATUS_STEP["PROMPT_APPROVED"]
+    open_early = {"eligibility"} if approved else set()
+    if results_ready:
+        open_early.add("results")
+    done_early = {"participants"} if approved and bids_ready else set()
     return [{"n": i + 1, "key": key, "label": label,
              "url": urls[key] if i <= reached or key in open_early else None,
-             "done": i < reached, "current": key == current}
+             "done": i < reached or key in done_early, "current": key == current}
             for i, (key, label) in enumerate(STEPS)]
 
 

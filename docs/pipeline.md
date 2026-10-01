@@ -17,7 +17,7 @@ Two rules run through every step:
 | Step | Job | What happens |
 | ---- | --- | ------------ |
 | 1 | INGEST_FILE | Store the RFP in S3 (`tenders/<id>/rfp/<sha256>.pdf`), extract text per page (Textract for scanned pages). |
-| 2 | EXTRACT_CRITERIA | Send the whole RFP (≤ 100 pages; larger → 40-page chunks) with `criteria_extraction_v2.md`. The LLM finds eligibility and evaluation criteria **by meaning**, wherever they sit and whatever they are called. Writes `criterion` rows: verbatim `rfp_text`, a one-line plain `meaning`, `max_marks`, `max_items`, `parent_code`. Blank forms (CV formats, declaration forms) are not criteria; each mandatory document in a "documents to be submitted" list is an eligibility row (always coded E.1, E.2 …); presentation/interview criteria get stage PRESENTATION. Notes that apply to several criteria come back once as general conditions and head the draft rule text. A re-extraction deletes criteria the RFP no longer yields, unless a run or committee mark refers to them. A row that another row names as its parent is a **group heading** (e.g. A = A.1 + A.2 + A.3): it is not scored, not added to the total and not put in the rule text (`app/criteria.py`). |
+| 2 | EXTRACT_CRITERIA | Send the whole RFP (≤ 100 pages; larger → 40-page chunks) with `criteria_extraction_v6.md`. The LLM finds eligibility and evaluation criteria **by meaning**, wherever they sit and whatever they are called. Writes `criterion` rows: verbatim `rfp_text`, a one-line plain `meaning`, `max_marks`, `max_items`, `parent_code`. Blank forms (CV formats, declaration forms) are not criteria; documents every bid must include but that the RFP does not state as eligibility are DOCUMENT rows (D.1, D.2 …, v5; anything marked not applicable is dropped); every eligibility requirement is one row (always coded E.1, E.2 …) that joins the requirement with the `proof` documents the RFP lists for it elsewhere and with the conditions that define it (v4); every mandatory document in a "documents to be submitted" list ends up in some eligibility row; presentation/interview criteria get stage PRESENTATION. Notes that apply to several criteria come back once as general conditions and head the draft rule text. A re-extraction deletes criteria the RFP no longer yields, unless a run or committee mark refers to them. A row that another row names as its parent is a **group heading** (e.g. A = A.1 + A.2 + A.3): it is not scored, not added to the total and not put in the rule text (`app/criteria.py`). |
 | 3 | — (API) | Render the criteria block from `criterion` rows into `evaluation_prompt` v1 (DRAFT). |
 | 4 | — (API) | Human compares the block with the RFP, edits, approves → PROMPT_APPROVED. |
 
@@ -26,7 +26,7 @@ Two rules run through every step:
 | ---- | --- | ------------ |
 | 1 | INGEST_FILE | sha256 check (re-upload = no-op). Store in S3. pypdfium2 reads the text layer of every page → `page` rows. `pages_done` updated as it goes, so the job can resume. |
 | 2 | OCR_PAGES | Pages with < 50 chars of text **or an image covering ≥ 25% of the page** are bundled into one PDF under `tmp/<file_id>/` and sent to Textract `StartDocumentTextDetection` (async). Text + confidence go back into `page`. tmp object deleted. |
-| 3 | LABEL_PAGES | Batches of ~20 pages (first 1,500 chars each) + the tender's criterion list (`code — meaning`, whole-bid criteria marked `[whole bid]`) with `page_label_v3.md`. Any page that is evidence for a whole-bid criterion is tagged with it. Sets `page_type`; for a claim summary the ONE `criterion_code` whose **meaning** it claims for (null if it covers several); for header/CV pages the best match by meaning, with `map_confidence`; and the item's `title`. Section-title pages are `BLANK`. Also checks the cover page for the GeM bid no. |
+| 3 | LABEL_PAGES | Batches of ~20 pages (first 1,500 chars each) + the tender's criterion list (`code — meaning`, whole-bid criteria marked `[whole bid]`) and the eligibility requirements (`code — meaning — proof`) with `page_label_v4.md`. Any page that is evidence for a whole-bid criterion is tagged with it; every page also lists the eligibility requirements it proves (`eligibility`, several allowed, alongside its criterion). Evaluation and eligibility screening label with the same lists, so the calls are answered once (LLM reply cache). Sets `page_type`; for a claim summary the ONE `criterion_code` whose **meaning** it claims for (null if it covers several); for header/CV pages the best match by meaning, with `map_confidence`; and the item's `title`. Section-title pages are `BLANK`. Also checks the cover page for the GeM bid no. |
 | 4 | BUILD_PROJECTS | Deterministic Python. Each `PROJECT_HEADER` page starts an item that runs until the next header, CV or section break. **Each item belongs to exactly one criterion: the bidder's claim decides.** A CV names the position it is proposed for, so a CV page's own label decides its criterion. A claim summary for one criterion opens a section; every project after it takes that criterion until the next claim summary or marketing page. A summary spread over consecutive pages opens a section only if all its pages point to the same criterion. Items outside a section use their own page's label. The same person's CV twice under one criterion (e.g. full CV + one-page profile) is scored once: the longest copy; the others are marked `duplicate_of` and not scored. If a bidder repeats the same project under A.1, A.2 and A.3, that is three items (three copies). Items are cross-checked against the `CLAIM_SUMMARY` page (count, page ranges); differences are flagged. |
 
 Why the image rule: bidders put a typed caption ("Documentary Evidence 5:
@@ -35,6 +35,19 @@ sends only 54 of Deloitte's pages to OCR; the image rule sends 253, which is
 where the work orders and completion letters are.
 For NSDF expect a few pages (EY, PwC) up to most of the evidence (GT, Deloitte).
 Start ingestion as soon as a bid is uploaded, not when the run starts.
+
+## 2b. Eligibility screening (`CHECK_ELIGIBILITY`, per bid file)
+Queued when a bid is uploaded after the criteria are approved, for every bid when they
+are approved, and by "Check eligibility again". Reads, OCRs and labels the bid as
+above (`ingest/prepare.py`), then one `eligibility_check_v1` call per requirement over
+only the pages tagged as its proof (none tagged: no call, result UNSURE). Python
+verifies every quote is on its page, every `*_inr` amount and `*_on` date against its
+quote, and recomputes every test (`evaluate/eligibility_check.py`); nothing is
+corrected and there is no automatic re-check, because the committee decides every
+check (`app/eligibility.py`): a reason is needed when the AI was unsure or the
+committee disagrees with it. Required documents are checked and decided the same way but
+never disqualify: one decided as not submitted is flagged. Only firms decided as
+meeting every eligibility criterion are evaluated; the others show on Results as not evaluated, with the reason (D-045).
 
 ## 3. Evaluation run
 Which criteria are scored (`app/criteria.py` `scoring`): every criterion with marks,

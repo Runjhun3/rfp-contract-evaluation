@@ -65,7 +65,7 @@ backend/
     evaluate/               # item_eval.py, evidence_check.py, copy_check.py,
                             # criterion_eval.py, arithmetic_check.py, flags.py
                             # parse_amount.py, parse_date.py (used by evidence_check)
-    export/                 # annexure_sheet.py (committee Excel format)
+    export/                 # annexure_sheet.py (summary) + firm_sheet.py (one per firm)
     jobs/                   # queue.py (enqueue/claim/finish), worker.py, handlers.py
     schemas/                # Pydantic models: api bodies + LLM outputs
   prompts/                  # <purpose>_v<N>.md, never edited in place

@@ -1,0 +1,49 @@
+/* Eligibility screening: the firms × requirements grid, a firm's check list, and firms
+   left out of evaluation. Tokens come from app.css. */
+.chip.green { background: #E3F1E6; color: #1E5A2B; }
+.chip.red { background: #F8E3E1; color: #8A2A20; }
+/* The table keeps its own rounded border; the scrollbar sits below it, outside. */
+.grid-scroll { overflow-x: auto; max-width: 100%; padding-bottom: 8px; }
+.grid-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.table.grid { width: max-content; min-width: 100%; overflow: visible; }
+.table.grid td.center { text-align: center; }
+.table.grid th.req { width: 120px; min-width: 120px; max-width: 120px; vertical-align: top;
+  text-align: center; text-transform: none; letter-spacing: 0; padding: 10px 8px; }
+.table.grid th.req .code { display: block; font-size: 13px; color: var(--ink); }
+.table.grid th.req .req-title { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden; font-weight: 400; line-height: 1.3; }
+.table.grid .col-firm, .table.grid .col-status { position: sticky; z-index: 1;
+  background: var(--card); }
+.table.grid th.col-firm, .table.grid th.col-status { background: var(--head);
+  vertical-align: top; }
+.table.grid .col-firm { left: 0; min-width: 140px; border-right: 1px solid var(--line); }
+.table.grid .col-status { right: 0; min-width: 190px; border-left: 1px solid var(--line); }
+.warn-text { color: var(--amber-ink); font-weight: 600; }
+.table.grid thead tr:first-child th:first-child { border-top-left-radius: var(--radius); }
+.table.grid thead tr:first-child th:last-child { border-top-right-radius: var(--radius); }
+.table.grid tr:last-child td:first-child { border-bottom-left-radius: var(--radius); }
+.table.grid tr:last-child td:last-child { border-bottom-right-radius: var(--radius); }
+a.cell.mark { justify-content: center; min-width: 40px; font-weight: 700; text-decoration: none; }
+a.cell.mark.decided { text-decoration: underline dotted; }
+.met { color: #1E5A2B; }
+.not-met { color: #8A2A20; }
+.unsure { color: var(--amber-ink); }
+a.cell.mark.met { color: #1E5A2B; }               /* green ✓, red ✗, AI or committee */
+a.cell.mark.not-met { color: #8A2A20; }
+.evidence .list .item.muted { cursor: default; }
+.item .badge.met { color: #1E5A2B; }
+.item .badge.not-met { color: #8A2A20; }
+.item .badge.decided { text-decoration: underline dotted; }
+.table tr.out td { color: var(--muted); background: var(--line-soft); }
+/* Criteria page: whether an extracted eligibility row counts, as a two-way switch. */
+.seg { display: inline-flex; border: 1px solid var(--field); border-radius: 8px;
+  overflow: hidden; background: var(--card); white-space: nowrap; }
+.seg label { position: relative; display: inline-flex; align-items: center; min-height: 36px;
+  padding: 0 14px; font-size: 14px; color: var(--muted); cursor: pointer; }
+.seg label + label { border-left: 1px solid var(--field); }
+.seg label:hover:not(.on) { background: var(--accent-tint); color: var(--ink); }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.seg label:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: -3px; }
+.seg label.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.seg label.on.off { background: var(--line-soft); color: var(--ink-2); }
+.seg + .warn-text { margin: 8px 0 0; max-width: 240px; }

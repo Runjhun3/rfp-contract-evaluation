@@ -1,18 +1,17 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { post } from "../api";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { del, post } from "../api";
 import BidUploads from "../components/BidUploads";
 import FirmPicker from "../components/FirmPicker";
 import { usePageTitle } from "../components/Layout";
 import ProjectHead from "../components/ProjectHead";
 import { ErrorText, Loading } from "../components/Status";
 import { plural } from "../format";
-import type { ParticipantsPage } from "../types";
+import type { Firm, ParticipantsPage } from "../types";
 import { useApi } from "../useApi";
 
 export default function Participants() {
   const { tenderId } = useParams();
-  const navigate = useNavigate();
   const [params] = useSearchParams();
   const search = params.get("q") ?? "";
   const base = `/api/v1/projects/${tenderId}`;
@@ -23,19 +22,22 @@ export default function Participants() {
   if (!data) return <Loading error={error} />;
 
   // Every write on this screen: show its error, or reload the lists after it.
-  async function act(path: string, body: unknown, after: (reply: unknown) => void = reload) {
+  async function act(send: () => Promise<unknown>, after: (reply: unknown) => void = reload) {
     setBusy(true);
     setActionError(null);
     try {
-      after(await post<unknown>(path, body));
+      after(await send());
     } catch (err) {
       setActionError((err as Error).message);
     } finally {
       setBusy(false);
     }
   }
-  const evaluate = () =>
-    act(`${base}/runs`, undefined, (reply) => navigate(`/runs/${(reply as { run_id: string }).run_id}`));
+  const deleteFirm = (firm: Firm) => {
+    if (window.confirm(`Delete ${firm.legal_name} from the firm list? It is removed from every project.`)) {
+      act(() => del(`/api/v1/firms/${firm.bidder_id}`));
+    }
+  };
   const { submissions, ready, approved } = data;
 
   return (
@@ -45,10 +47,10 @@ export default function Participants() {
         <ErrorText error={actionError} />
         <div className="two">
           <FirmPicker data={data} search={search} busy={busy}
-            onSave={(ids) => act(`${base}/participants`, { bidder_ids: ids })}
-            onAdd={(firm) => act(`${base}/firms`, firm)} />
+            onSave={(ids) => act(() => post(`${base}/participants`, { bidder_ids: ids }))}
+            onAdd={(firm) => act(() => post(`${base}/firms`, firm))} onDelete={deleteFirm} />
           <BidUploads submissions={submissions} busy={busy}
-            onUpload={(id, form) => act(`/api/v1/submissions/${id}/file`, form)} />
+            onUpload={(id, form) => act(() => post(`/api/v1/submissions/${id}/file`, form))} />
         </div>
       </main>
       <div className="actions">
@@ -56,11 +58,10 @@ export default function Participants() {
         <div className="row">
           {!approved ? <span className="small muted">Criteria must be approved first.</span>
             : !ready ? <span className="small muted">Upload at least one bid.</span>
-            : ready < submissions.length ? <span className="small muted">Participants without a bid are left out of this run.</span>
-            : null}
-          <button className="btn primary" type="button" onClick={evaluate} disabled={!approved || !ready || busy}>
-            Evaluate {plural(ready, "participant")}
-          </button>
+            : <span className="small muted">{plural(ready, "bid")} uploaded; each is checked for eligibility as it arrives.</span>}
+          {approved && ready > 0 ? (
+            <Link className="btn primary" to={`/projects/${tenderId}/eligibility`}>Check Eligibility</Link>
+          ) : <button className="btn primary" type="button" disabled>Check Eligibility</button>}
         </div>
       </div>
     </>

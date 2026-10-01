@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { marks, plural, runFinished, titleCase } from "./format";
+import { marks, pageRanges, plural, runFinished, titleCase } from "./format";
 
 describe("format", () => {
+  it("shows consecutive pages as ranges", () => {
+    expect(pageRanges([42, 43, 44, 45, 46, 47])).toBe("42–47");
+    expect(pageRanges([38, 30, 32, 33, 34, 36, 37])).toBe("30, 32–34, 36–38");
+    expect(pageRanges([7])).toBe("7");
+    expect(pageRanges([])).toBe("");
+  });
+
   it("shows marks exactly as the API sent them, or a dash", () => {
     expect(marks("12")).toBe("12");
     expect(marks("9.5")).toBe("9.5");

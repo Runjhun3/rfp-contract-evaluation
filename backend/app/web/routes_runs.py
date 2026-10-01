@@ -1,8 +1,9 @@
 """API: start an evaluation and watch its progress (the page polls GET /runs/{id})."""
 from starlette.routing import Route
 
+from app import eligibility
 from app.criteria import missing_max_marks
-from app.db import q_bids, q_projects, q_runs
+from app.db import q_projects, q_runs
 from app.db.connection import transaction
 from app.db.repo_setup import LOCAL_USER_ID
 from app.web.auth import check_csrf
@@ -25,11 +26,14 @@ async def start_run(request):
     settings = request.app.state.settings
     with _db(request) as cur:
         prompt = q_projects.latest_prompt(cur, tender_id)
-        ready = [s["submission_id"] for s in q_bids.ready_submissions(cur, tender_id)]
+        # Only firms the committee found eligible (every firm with a bid when the
+        # tender has no eligibility criteria).
+        ready = [f["submission_id"] for f in eligibility.qualified(cur, tender_id)]
         if not prompt or prompt["status"] != "APPROVED":
             return fail("Criteria must be approved first.", 409)
         if not ready:
-            return fail("Upload at least one bid.", 409)
+            return fail("No firm is qualified yet. Upload the bids and decide their "
+                        "eligibility checks first.", 409)
         problem = missing_max_marks(q_projects.criteria(cur, tender_id))
         if problem:
             return fail(problem, 409)
@@ -56,9 +60,14 @@ async def run_page(request):
         if run is None:
             return fail("Run not found", 404)
         project = q_projects.get_project(cur, run["tender_id"])
+        if project is None:                           # the project was deleted
+            return fail("Run not found", 404)
         rows = _rows(cur, run_id)
         ready = q_runs.has_results(cur, run["tender_id"])
+        left_out = eligibility.left_out(cur, run["tender_id"],
+                                        {r["submission_id"] for r in rows})
     return ok({"project": project, "run": run, "rows": rows,
+               "left_out": left_out,
                "steps": stepper(project, "evaluate", run_id, results_ready=ready)})
 
 

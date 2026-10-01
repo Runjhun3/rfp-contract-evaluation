@@ -2,10 +2,30 @@
 from app.db.connection import all_rows, one_row
 
 
+# Projects (deleted ones too) holding the firm's bid file, an evaluation or committee
+# marks. A firm with any of these stays on record; one merely ticked can be deleted.
+_BIDS = """(select count(*) from bid_submission s where s.bidder_id = b.bidder_id
+  and (exists (select 1 from submission_file f where f.submission_id = s.submission_id)
+       or exists (select 1 from run_submission r where r.submission_id = s.submission_id)
+       or exists (select 1 from manual_score m where m.submission_id = s.submission_id))
+  ) as bids"""
+
+
 def bidders(cur, search: str = "") -> list[dict]:
-    return all_rows(cur, """select bidder_id::text, legal_name, short_name from bidder
-                            where legal_name ilike %s or short_name ilike %s
-                            order by short_name limit 200""", (f"%{search}%", f"%{search}%"))
+    return all_rows(cur, f"""select b.bidder_id::text, b.legal_name, b.short_name, {_BIDS}
+                             from bidder b where b.legal_name ilike %s or b.short_name ilike %s
+                             order by b.short_name limit 200""", (f"%{search}%", f"%{search}%"))
+
+
+def bidder(cur, bidder_id: str) -> dict | None:
+    return one_row(cur, f"""select b.bidder_id::text, b.short_name, {_BIDS}
+                            from bidder b where b.bidder_id = %s""", (bidder_id,))
+
+
+def delete_bidder(cur, bidder_id: str) -> None:
+    """Only for a firm with no bid or results anywhere (removal.delete_firm checks)."""
+    cur.execute("delete from bid_submission where bidder_id = %s", (bidder_id,))
+    cur.execute("delete from bidder where bidder_id = %s", (bidder_id,))
 
 
 def add_bidder(cur, legal_name: str, short_name: str) -> str:

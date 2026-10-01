@@ -6,7 +6,8 @@ type Props = { item: Verdict; checks: CheckView[]; pageLink: (page: number) => s
 
 const STATUS = { counted: "Counted", not_counted: "Not counted", not_scored: "Not scored" };
 
-function CheckRow({ c, pageLink }: { c: CheckView; pageLink: Props["pageLink"] }) {
+// One check in plain words, with a link to its page. Also lists an eligibility check's proof.
+export function CheckRow({ c, pageLink }: { c: CheckView; pageLink: Props["pageLink"] }) {
   return (
     <div className={`chk ${c.state}`}>
       <strong aria-hidden="true">{c.state === "passed" ? "✓" : c.state === "problem" ? "!" : "i"}</strong>

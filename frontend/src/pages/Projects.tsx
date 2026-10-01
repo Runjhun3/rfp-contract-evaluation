@@ -1,16 +1,31 @@
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { del } from "../api";
 import { usePageTitle } from "../components/Layout";
-import { Loading } from "../components/Status";
+import { ErrorText, Loading } from "../components/Status";
 import { titleCase } from "../format";
-import type { ProjectList } from "../types";
+import type { ProjectList, ProjectRow } from "../types";
 import { useApi } from "../useApi";
 
 export default function Projects() {
   usePageTitle("Projects");
   const [params] = useSearchParams();
   const page = Math.max(1, Number(params.get("page")) || 1);
-  const { data, error } = useApi<ProjectList>(`/api/v1/projects?page=${page}`);
+  const { data, error, reload } = useApi<ProjectList>(`/api/v1/projects?page=${page}`);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   if (!data) return <Loading error={error} />;
+
+  // Deleting hides the project from every page; its records stay in the database.
+  async function remove(p: ProjectRow) {
+    if (!window.confirm(`Delete project "${p.name}"? It will no longer appear on any page.`)) return;
+    setDeleteError(null);
+    try {
+      await del(`/api/v1/projects/${p.tender_id}`);
+      reload();
+    } catch (err) {
+      setDeleteError((err as Error).message);
+    }
+  }
 
   return (
     <main className="page">
@@ -21,13 +36,14 @@ export default function Projects() {
         </div>
         <Link className="btn primary" to="/projects/new">+ New project</Link>
       </div>
+      <ErrorText error={deleteError} />
       {data.projects.length ? (
         <>
           <table className="table">
             <thead>
               <tr>
                 <th>Project</th><th>GeM bid no.</th><th className="right">Participants</th>
-                <th>Stage</th><th>Open reviews</th><th>Created</th>
+                <th>Stage</th><th>Open reviews</th><th>Created</th><th><span className="sr-only">Delete</span></th>
               </tr>
             </thead>
             <tbody>
@@ -49,6 +65,10 @@ export default function Projects() {
                       : <span className="muted">—</span>}
                   </td>
                   <td className="muted">{p.created}</td>
+                  <td className="right">
+                    <button className="btn small quiet" type="button" onClick={() => remove(p)}
+                      aria-label={`Delete project ${p.name}`}>Delete</button>
+                  </td>
                 </tr>
               ))}
             </tbody>

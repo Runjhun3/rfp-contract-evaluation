@@ -70,9 +70,32 @@ def test_llm_client_retries_bad_json_then_caches(tmp_path):
     llm = LlmClient(settings, completer=fake)
     assert llm.ask_json("s", "u", PageLabels).pages[0].page_type == "CV"
     assert len(calls) == 2 and "could not be used" in calls[1]
+    assert "Previous answer:" not in calls[1]
     replay = LlmClient(Settings(_env_file=None, llm_cache_dir=str(tmp_path), llm_mode="replay"))
     with pytest.raises(ReplayMiss):
         replay.complete("s", "never asked")
+
+
+def _labels(page_type):
+    return json.dumps({"pages": [{"pdf_page_no": 1, "page_type": page_type}]})
+
+
+def test_a_self_corrected_answer_uses_its_last_object_without_a_retry(tmp_path):
+    corrected = (f"```json\n{_labels('CV')}\n```\nWait, page 1 is a work order {{sic}}."
+                 f"\n```json\n{_labels('WORK_ORDER')}\n```\n{{\"note\": \"not a page list\"}}")
+    calls = []
+    settings = Settings(_env_file=None, llm_cache_dir=str(tmp_path))
+    llm = LlmClient(settings, completer=lambda s, u, i: calls.append(u) or corrected)
+    assert llm.ask_json("s", "u", PageLabels).pages[0].page_type == "WORK_ORDER"
+    assert len(calls) == 1
+
+
+def test_a_failed_ask_leaves_nothing_cached_so_a_rerun_asks_again(tmp_path):
+    settings = Settings(_env_file=None, llm_cache_dir=str(tmp_path))
+    llm = LlmClient(settings, completer=lambda s, u, i: "no json here")
+    with pytest.raises(ValueError):
+        llm.ask_json("s", "u", PageLabels)
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_the_same_persons_cv_twice_under_one_criterion_is_scored_once():

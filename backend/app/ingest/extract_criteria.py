@@ -29,6 +29,10 @@ class ExtractedCriterion(BaseModel):
     kind: str | None = None
     item_marks: list[str] = Field(default_factory=list)
     count_bands: list[dict] = Field(default_factory=list)   # {"min", "max", "marks"}
+    proof: str | None = None       # eligibility: the documents the RFP asks for as proof
+    rfp_no: str | None = None      # screened rows: the number the RFP prints ("3", "B")
+    source_reference: str | None = None
+    classification_unsure: bool = False
     scored_by: str = "LLM"
     rfp_page: int | None = None
 
@@ -53,23 +57,29 @@ def extract(pages: list[Page], llm: LlmClient) -> Extracted:
         rows += answer.criteria
         for g in answer.general_conditions:
             general.setdefault(" ".join(g.text.split()), g)
-    return Extracted(criteria=merge(rows), general_conditions=list(general.values()))
+    merged = merge(rows)
+    if not any(c.stage in ("TECHNICAL", "PRESENTATION") for c in merged):
+        raise ValueError("Extraction returned no scored criteria; review the RFP extraction.")
+    return Extracted(criteria=merged, general_conditions=list(general.values()))
 
 
 def merge(rows: list[ExtractedCriterion]) -> list[ExtractedCriterion]:
-    """One row per code across chunks. Eligibility rows are renumbered E.1, E.2 ... in
-    the order found, so two chunks that both start at E.1 do not overwrite each other;
-    the same eligibility title found twice is kept once."""
+    """One eligibility row per title across chunks, renumbered E.1, E.2 ... ."""
     scored: dict[str, ExtractedCriterion] = {}
-    eligibility: dict[str, ExtractedCriterion] = {}
+    screened: dict[str, ExtractedCriterion] = {}
     for c in rows:
-        if c.stage == "ELIGIBILITY":
-            eligibility.setdefault(" ".join(c.title.lower().split()), c)
+        if c.stage in ("ELIGIBILITY", "DOCUMENT"):
+            c.stage = "ELIGIBILITY"
+            kept = screened.setdefault(" ".join(c.title.lower().split()), c)
+            kept.proof = kept.proof or c.proof
+            kept.rfp_no = kept.rfp_no or c.rfp_no
+            kept.source_reference = kept.source_reference or c.source_reference
+            kept.classification_unsure = kept.classification_unsure or c.classification_unsure
         else:
             scored.setdefault(c.code, c)
-    for n, c in enumerate(eligibility.values(), start=1):
+    for n, c in enumerate(screened.values(), start=1):
         c.code, c.parent = f"E.{n}", None
-    return [*eligibility.values(), *scored.values()]
+    return [*screened.values(), *scored.values()]
 
 
 def decimal_or_none(value: str | None) -> Decimal | None:
