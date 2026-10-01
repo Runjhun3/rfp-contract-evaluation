@@ -12,8 +12,7 @@ import { useApi } from "../useApi";
 // While any bid is being checked, ask again every 10 s so its row fills in.
 const whileChecking = (d: EligibilityPage) => (d.checking > 0 ? 10000 : null);
 
-// Eligibility screening: every firm's checks, highlighted until the committee decides
-// them. Only firms decided as meeting every requirement go on to evaluation.
+// Clear AI findings determine eligibility; only AI-uncertain checks need a decision.
 export default function Eligibility() {
   const { tenderId } = useParams();
   const navigate = useNavigate();
@@ -49,7 +48,7 @@ export default function Eligibility() {
         <div className="spread">
           <div>
             <h2>Eligibility screening</h2>
-            <p className="sub">Only firms the committee finds meet every eligibility criterion go on to technical evaluation.</p>
+            <p className="sub">Clear AI findings qualify or disqualify firms automatically. The committee decides only AI-uncertain checks and may override any finding.</p>
           </div>
           {data.requirements.length > 0 && data.firms.length > 0 && (
             <button className="btn small" type="button" disabled={busy}
@@ -63,18 +62,17 @@ export default function Eligibility() {
           </div>
         )}
         {data.open > 0 && (
-          <div className="notice"><strong>{plural(data.open, "check")} awaiting committee decision.</strong></div>
+          <div className="notice"><strong>{plural(data.open, "AI-uncertain check")} awaiting committee decision.</strong></div>
         )}
         {!data.requirements.length ? (
-          <div className="notice info">This project has no eligibility criteria or required documents: every firm with a bid goes on to evaluation.</div>
+          <div className="notice info">This project has no considered eligibility criteria: every firm with a bid goes on to evaluation.</div>
         ) : !data.firms.length ? (
           <div className="notice info">No bids yet. Upload them on the <Link to={`/projects/${tenderId}/participants`}>Participants</Link> step.</div>
         ) : (
           <section className="card">
             <EligibilityGrid requirements={data.requirements} firms={data.firms} />
             <p className="small muted">
-              ✓ met / submitted · ✗ not met / not submitted · ? AI unsure · Highlighted = the AI's finding,
-              not decided by the committee yet · green / red with a dotted underline = decided
+              ✓ met · ✗ not met · ? AI unsure, highlighted until the committee decides · dotted underline = committee decision
             </p>
           </section>
         )}

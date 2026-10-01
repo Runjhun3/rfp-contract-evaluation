@@ -3,7 +3,7 @@ finding, proof quotes in plain language and decision. Presentation only: every r
 comes from the check job and every decision from app/eligibility.py.
 """
 from app.db import q_eligibility, q_projects
-from app.eligibility import firm, number, requirements
+from app.eligibility import firm, requirements
 from app.evidence_labels import present
 
 
@@ -33,8 +33,8 @@ def _detail(check: dict, req: dict) -> dict:
     facts = check["facts"] or {}
     proof = [present(c, facts) for c in check["verification"] or []]
     pages = [p["page"] for p in proof if p["page"]] + list(check["pages"] or [])
-    return {"check_id": check["check_id"], "code": req["code"], "number": number(req),
-            "stage": req["stage"],
+    return {"check_id": check["check_id"], "code": req["code"], "number": req["number"],
+            "stage": "ELIGIBILITY",
             "title": req["title"],
             "rfp_text": req["rfp_text"],
             "result": check["result"], "finding": check["finding"], "checked": check["checked"],

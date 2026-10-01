@@ -23,7 +23,7 @@ def current(cur, tender_id: str, submission_id: str | None = None) -> list[dict]
                        from eligibility_decision x join app_user u on u.user_id = x.reviewer
                        where x.check_id = e.check_id
                        order by x.decided_at desc limit 1) d on true
-    where c.stage in ('ELIGIBILITY', 'DOCUMENT') and e.tender_id = %s
+    where c.stage = 'ELIGIBILITY' and c.considered and e.tender_id = %s
       and (%s::uuid is null or e.submission_id = %s::uuid)
     order by e.submission_id, e.criterion_id, e.checked_at desc""",
                     (tender_id, submission_id, submission_id))
@@ -84,7 +84,7 @@ def record_decision(cur, check_id: str, decision: str, reason: str, user_id: str
 def decisions(cur, tender_id: str) -> list[dict]:
     """Every decision on the tender's checks, oldest first (the exported log)."""
     return all_rows(cur, """
-        select e.submission_id::text, c.code, c.rfp_no, c.stage, x.decision, x.reason,
+        select e.submission_id::text, c.code, c.stage, x.decision, x.reason,
                u.full_name,
                to_char(x.decided_at, 'DD Mon YYYY HH24:MI') as decided
         from eligibility_decision x join eligibility_check e using (check_id)

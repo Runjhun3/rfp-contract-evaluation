@@ -73,13 +73,13 @@ def _firm() -> dict:
                "decision": "MET", "pages": [44, 41, 42, 43, 46],
                "finding": "Two of three years are on the CA certificate.",
                "decision_reason": "Third year verified on the audited statement"},
-              {"criterion_id": "d1", "stage": "DOCUMENT", "result": "MET",
+              {"criterion_id": "e2", "stage": "ELIGIBILITY", "result": "MET",
                "decision": "NOT_MET", "pages": [7], "finding": "Bid form on p.7.",
                "decision_reason": "Only an unsigned copy is in the bid"}]
     log = [{"code": "E.1", "stage": "ELIGIBILITY", "decision": "MET",
             "full_name": "Local user", "decided": "29 Sep 2026 11:00",
             "reason": "Third year verified"},
-           {"code": "D.1", "stage": "DOCUMENT", "decision": "NOT_MET",
+           {"code": "E.2", "stage": "ELIGIBILITY", "decision": "NOT_MET",
             "full_name": "Local user", "decided": "29 Sep 2026 11:05", "reason": "Unsigned"}]
     return {"row": row, "items": items, "decisions": decisions, "eligibility": checks,
             "eligibility_log": log}
@@ -91,8 +91,10 @@ def _book():
     return load_workbook(io.BytesIO(build_workbook(
         {"project": PROJECT, "results": results, "criteria": CRITERIA, "firms": [firm],
          "requirements": [
-             {"criterion_id": "e1", "code": "E.1", "stage": "ELIGIBILITY", "title": "Turnover"},
-             {"criterion_id": "d1", "code": "D.1", "stage": "DOCUMENT", "title": "Bid form"}]})))
+             {"criterion_id": "e1", "code": "E.1", "number": "1", "stage": "ELIGIBILITY",
+              "title": "Turnover"},
+             {"criterion_id": "e2", "code": "E.2", "number": "2", "stage": "ELIGIBILITY",
+              "title": "Bid form"}]})))
 
 
 def test_the_summary_compares_firms_on_eligibility_and_marks():
@@ -101,7 +103,7 @@ def test_the_summary_compares_firms_on_eligibility_and_marks():
     rows = {r[1]: r for r in book["Summary"].iter_rows(min_row=6, values_only=True) if r[1]}
     assert rows["Turnover"][2:4] == ("pass/fail", "met")
     assert rows["Eligibility"][3] == "Qualified"
-    assert rows["Bid form"][2:4] == ("required", "not submitted")    # flagged, still qualified
+    assert rows["Bid form"][2:4] == ("pass/fail", "not met")
     assert rows["Experience"][3] == D("22.5") and rows["Projects"][3] == 12
     assert rows["Large projects"][3] == 10.5 and rows["Presentation"][3] == 8
     assert rows["Total"][2:4] == (34, 30.5)
@@ -111,12 +113,12 @@ def test_the_summary_compares_firms_on_eligibility_and_marks():
 def test_each_firm_sheet_has_its_eligibility_items_and_full_decision_log():
     firm = list(_book()["Firm One"].iter_rows(values_only=True))
     assert firm[0][0] == "Firm One Pvt Ltd (Firm/One)" and "total 30.5 of 34" in firm[1][0]
-    assert firm[4][:7] == ("E.1", "Turnover", "41–44, 46", None, None, "unsure", "met")
+    assert firm[4][:7] == ("1", "Turnover", "41–44, 46", None, None, "unsure", "met")
     assert "Committee: Third year verified" in firm[4][8]
-    assert firm[5][:7] == ("D.1", "Bid form", "7", None, None, "submitted", "not submitted")
+    assert firm[5][:7] == ("2", "Bid form", "7", None, None, "met", "not met")
     assert firm[9][:8] == ("A.1", "Projects", None, 12, None, "approved", None, 12)
     assert firm[10][1:8] == ("Stadium PMU", "10–20", None, 2, "overridden", "yes", 2)
     assert "Committee: Certificate accepted" in firm[10][8]
-    assert firm[-3][:2] == ("E.1", "eligibility") and firm[-3][5] == "met"
-    assert firm[-2][:2] == ("D.1", "required document") and firm[-2][5] == "not submitted"
+    assert firm[-3][:2] == ("1", "eligibility") and firm[-3][5] == "met"
+    assert firm[-2][:2] == ("2", "eligibility") and firm[-2][5] == "not met"
     assert firm[-1][:3] == ("A.1", "Stadium PMU", "10–20") and firm[-1][5] == "override"

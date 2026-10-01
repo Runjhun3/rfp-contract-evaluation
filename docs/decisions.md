@@ -3,6 +3,33 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-052 A presentation is always scored by the committee (2026-10-01)
+criteria_extraction_v8 dropped the stage and scorer definitions, so a presentation
+criterion came back as TECHNICAL, scored by the AI. v9 states them again. Storing a
+row (`app/jobs/handlers.py`) also sets scored_by COMMITTEE for every PRESENTATION row,
+whatever the model returned: who marks a presentation is not a judgement call.
+Projects extracted with v8 keep their rows until re-extracted; the committee can set
+"Scored by: Committee only" on the Criteria page meanwhile.
+
+## D-051 A self-corrected LLM answer uses its last JSON object (2026-10-01)
+The model sometimes catches its own mistake mid-answer (e.g. an amount converted with the
+wrong unit) and writes a note and a corrected JSON object after the first. The parser took
+everything from the first "{" to the last "}", so the whole response failed, the retry
+failed the same way, and both failures were cached and replayed on every re-run. Now
+`app/llm/client.py` reads each complete JSON object and uses the last one that fits the
+expected model; the correction comes after what it corrects. Nothing is repaired: Python
+still verifies every fact. When neither the answer nor its retry is usable, both are
+dropped from the cache, so a re-run asks the model again (replay mode keeps its cache).
+
+## D-050 Unified eligibility screening; AI clear findings apply automatically (2026-10-01)
+Mandatory bid documents and eligibility conditions are both extracted as eligibility rows.
+On the Criteria page, a row can be excluded before approval; excluded rows are not sent to
+the LLM and do not appear in subsequent workflow stages. The extraction model marks only
+classification-uncertain rows for the committee's attention. For each considered row, a
+verified MET or NOT_MET finding is the effective result immediately. Only UNSURE blocks a
+firm for a committee decision. The committee may append a reasoned override to any clear
+finding, retaining the existing audit trail.
+
 ## D-049 A firm's last eligibility results stay shown while it is checked again (2026-09-30)
 Checking again (or replacing a bid) blanked the firm's row until the new check ended, so
 a firm already decided as qualified disappeared. Now its last finished checks, their

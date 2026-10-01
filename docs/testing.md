@@ -13,7 +13,8 @@ Must-have unit tests:
   5.01 Cr → 2), cap exceeded, best-N with a tie, Decimal rounding.
 - `build_projects`: header-to-header boundaries, CV sections, a missing header.
 - `prompts.py`: a missing placeholder raises an error. Loading an unknown version raises an error.
-- LLM JSON parsing: invalid JSON → one retry → fail.
+- LLM JSON parsing: invalid JSON → one retry → fail (nothing cached); a self-corrected
+  answer uses its last object.
 - `parse_amount`: "INR 9.06 Crore", "Rs. 9,06,00,000/-", "₹ 906 lakh",
   "Rs 90.6 million" (→ flag, not parsed), "9.06 Cr (inclusive of GST)".
 - `parse_date`: "31.03.2023", "31/03/2023", "31st March 2023", "March 2023"

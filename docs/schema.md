@@ -80,12 +80,15 @@ views: final_score (review wins over checked marks), run_total (/65 + /35)
   project is hidden everywhere; no row is removed (D-043). A `bidder` row is deleted
   only when no project holds its bid file, a run or committee marks.
 - `criterion.rfp_no` (013): the number the RFP prints for a screened row, shown in place
-  of its internal code (E.1, D.1), which stays the key (D-047).
-- `criterion.stage` (012) adds DOCUMENT: a document every bid must include, screened
-  like an eligibility row but never disqualifying (D-046).
+  of its internal code (E.1), which stays the key (D-047).
+- `criterion.considered` (014): an extracted eligibility row is included only when the
+  committee chooses to consider it; otherwise it is excluded from all later stages.
+- `criterion.source_reference` (015) stores the Annexure/clause location separately
+  from the criterion's human-readable title.
 - A firm's eligibility is derived, not stored (`app/eligibility.py`): qualified when
-  every eligibility criterion's current check is decided as met, not qualified when one is
-  decided as not met, otherwise open / checking / not checked / check failed. Only
+  every considered criterion's effective result is met, not qualified when one is not
+  met, otherwise open / checking / not checked / check failed. The AI result is effective
+  unless the committee records an override; only an AI UNSURE result needs a decision. Only
   qualified firms are evaluated (D-045).
 - `evaluation_run.status`: QUEUED → RUNNING → DONE | FAILED | CANCELLED
 - `run_submission.stage`: QUEUED → READING → OCR → LABELLING → ITEMS →

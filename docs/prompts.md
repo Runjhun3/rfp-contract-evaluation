@@ -7,7 +7,8 @@ file lists what exists and how the pieces fit together.
 | File | Used by | Input | Output |
 | ---- | ------- | ----- | ------ |
 | `system_v2.md` | every evaluation call | — | role + general rules |
-| `criteria_extraction_v6.md` | EXTRACT_CRITERIA | RFP pages | as v5, plus `rfp_no`: the number the RFP prints for each eligibility criterion and required document |
+| `criteria_extraction_v9.md` | EXTRACT_CRITERIA | RFP pages | as v8, with the stage and scorer of each scored row stated again (v8 lost them, so a presentation came back TECHNICAL, scored by the AI) |
+| `criteria_extraction_v8.md` (superseded) | EXTRACT_CRITERIA | RFP pages | detailed criteria extraction restored; unified eligibility rows, complete marks tables, and a separate criterion source reference |
 | `criteria_extraction_v5.md` (superseded) | EXTRACT_CRITERIA | RFP pages | as v4, plus required documents as stage DOCUMENT (D.1 …), apart from eligibility; anything marked not applicable is dropped |
 | `criteria_extraction_v4.md` (superseded) | EXTRACT_CRITERIA | RFP Annexure II/III pages | criterion list JSON (v2: group headings + `parent`; v4: each eligibility row joined with its `proof` and defining conditions, every required document kept) |
 | `page_label_v4.md` | LABEL_PAGES | ~20 page snippets + criteria + eligibility requirements (with proof) | page_type per page; v4: `eligibility`, the requirements each page proves |

@@ -9,14 +9,13 @@ eligibility and its marks, oldest first (the full log, repeated decisions includ
 import re
 
 from app.criteria import group_codes
-from app.eligibility import number
 from app.export.sheet_data import WORDS, criterion_marks, eligibility_word
 from app.export.sheet_style import TITLE, bold_row, page_ranges, pages, style
 from app.web.common import format_marks
 
-ELIGIBILITY = ["Code", "Eligibility criterion / required document", "Pages", "", "", "AI",
+ELIGIBILITY = ["Code", "Eligibility criterion", "Pages", "", "", "AI",
                "Committee", "", "Finding"]
-SCREENING = {"ELIGIBILITY": "eligibility", "DOCUMENT": "required document"}
+SCREENING = {"ELIGIBILITY": "eligibility"}
 HEADER = ["Code", "Criterion / item", "Pages", "Max marks", "AI marks", "Committee",
           "Counted", "Final marks", "Reason"]
 LOG = ["Code", "Item", "Pages", "", "", "Decision", "When (IST) · by", "Final marks", "Reason"]
@@ -38,7 +37,7 @@ def firm_sheet(book, firm: dict, data: dict) -> None:
     sheet.append([])
     _eligibility(sheet, firm, data["requirements"])
     _marks(sheet, firm, data["criteria"])
-    _log(sheet, firm)
+    _log(sheet, firm, {r["code"]: r["number"] for r in data["requirements"]})
     style(sheet, header_row=4, widths=WIDTHS)
     sheet["A1"].font = TITLE
 
@@ -54,7 +53,7 @@ def _eligibility(sheet, firm: dict, requirements: list[dict]) -> None:
                                         check and check["decision_reason"]
                                         and f"Committee: {check['decision_reason']}") if p)
         ai = WORDS[check["stage"]][check["result"]] if check else ""
-        sheet.append([number(req), req["title"],
+        sheet.append([req["number"], req["title"],
                       page_ranges(check["pages"]) if check else "", None, None,
                       ai, eligibility_word(check), None, finding])
     sheet.append([])
@@ -76,14 +75,16 @@ def _marks(sheet, firm: dict, criteria: list[dict]) -> None:
                           i["final_marks"], _reason(i)])
 
 
-def _log(sheet, firm: dict) -> None:
+def _log(sheet, firm: dict, numbers: dict[str, str]) -> None:
+    """numbers: each requirement's shown number by code; a row no longer considered
+    keeps its code."""
     sheet.append([])
     sheet.append(["Decision log"])
     bold_row(sheet, sheet.max_row)
     sheet.append(LOG)
     bold_row(sheet, sheet.max_row)
     for d in firm["eligibility_log"]:
-        sheet.append([number(d), SCREENING[d["stage"]], "", None, None,
+        sheet.append([numbers.get(d["code"], d["code"]), SCREENING[d["stage"]], "", None, None,
                       WORDS[d["stage"]][d["decision"]],
                       f"{d['decided']} · {d['full_name']}", None, d["reason"]])
     for d in firm["decisions"]:

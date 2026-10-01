@@ -1,8 +1,8 @@
 """API: the criteria read from the RFP, their rule text, and approval."""
 from starlette.routing import Route
 
-from app import eligibility
-from app.criteria import edited_stage, missing_max_marks, review_view
+from app import eligibility_actions
+from app.criteria import missing_max_marks, review_view
 from app.db import q_projects
 from app.db.connection import transaction
 from app.db.repo_setup import LOCAL_USER_ID
@@ -34,7 +34,7 @@ def _fields(sent: dict, current: dict) -> dict:
             "max_marks": values["max_marks"] or None, "max_items": values["max_items"] or None,
             "allowed": [m.strip() for m in str(values["allowed"] or "").split(",") if m.strip()],
             "scored_by": values["scored_by"],
-            "stage": edited_stage(current["stage"], sent.get("stage"))}
+            "considered": bool(sent.get("considered", current.get("considered", True)))}
 
 
 async def save_criteria(request):
@@ -58,7 +58,7 @@ async def approve_criteria(request):
         if problem:
             return fail(problem, 409)
         q_projects.approve_prompt(cur, tender_id, LOCAL_USER_ID)
-        eligibility.queue_checks(cur, tender_id)       # bids uploaded before approval
+        eligibility_actions.queue_checks(cur, tender_id)       # bids uploaded before approval
     return ok(None, "Criteria approved")
 
 

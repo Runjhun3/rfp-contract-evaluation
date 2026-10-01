@@ -40,9 +40,9 @@ def _upsert_criterion(cur, tender_id: str, c) -> None:
     stage = c.stage if c.stage in (*SCREENED, "TECHNICAL", "PRESENTATION") else "TECHNICAL"
     cur.execute("""insert into criterion (tender_id, code, parent_code, stage, kind, title, rfp_text,
                      meaning, max_marks, max_items, allowed_item_marks, scored_by, rfp_page,
-                     count_bands, proof, rfp_no)
+                     count_bands, proof, rfp_no, source_reference, considered, classification_unsure)
                    values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::numeric[], %s, %s,
-                           %s::jsonb, %s, %s)
+                           %s::jsonb, %s, %s, %s, %s, %s)
                    on conflict (tender_id, code) do update set parent_code = excluded.parent_code,
                      stage = excluded.stage,
                      kind = excluded.kind, title = excluded.title, rfp_text = excluded.rfp_text,
@@ -50,14 +50,20 @@ def _upsert_criterion(cur, tender_id: str, c) -> None:
                      max_items = excluded.max_items, allowed_item_marks = excluded.allowed_item_marks,
                      scored_by = excluded.scored_by, rfp_page = excluded.rfp_page,
                      count_bands = excluded.count_bands, proof = excluded.proof,
-                     rfp_no = excluded.rfp_no""",
+                     rfp_no = excluded.rfp_no, source_reference = excluded.source_reference,
+                     considered = excluded.considered,
+                     classification_unsure = excluded.classification_unsure""",
                 (tender_id, c.code, c.parent, stage, c.kind if c.kind in ("PROJECT", "CV") else None,
                  c.title, c.rfp_text, c.meaning, decimal_or_none(c.max_marks), c.max_items,
                  [m for m in c.item_marks if decimal_or_none(m) is not None],
-                 "COMMITTEE" if c.scored_by == "COMMITTEE" else "LLM", c.rfp_page,
+                 # A presentation is always the committee's to mark, whatever scored_by says.
+                 "COMMITTEE" if c.scored_by == "COMMITTEE" or stage == "PRESENTATION"
+                 else "LLM", c.rfp_page,
                  json.dumps(_bands(c.count_bands)),
                  c.proof if stage in SCREENED else None,
-                 ((c.rfp_no or "").strip().rstrip(".") or None) if stage in SCREENED else None))
+                 ((c.rfp_no or "").strip().rstrip(".") or None) if stage in SCREENED else None,
+                 c.source_reference,
+                 not c.classification_unsure, c.classification_unsure))
 
 
 def _bands(raw: list[dict]) -> list[dict]:

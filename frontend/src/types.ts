@@ -22,6 +22,8 @@ export interface Criterion {
   rfp_text: string; meaning: string; max_marks: Marks | null; max_items: number | null;
   scored_by: string; rfp_page: number | null; allowed: string;
   rfp_no: string | null; // screened rows: the number the RFP prints ("3", "B"); null if none
+  source_reference: string | null;
+  considered: boolean; classification_unsure: boolean;
   // Group headings only, computed by the API from the saved rows:
   parts?: Marks[]; parts_total?: Marks; rfp_matches?: boolean | null;
   // Scored rows only: set when max items × top mark per item differs from the marks.
@@ -53,13 +55,11 @@ export interface RunPage extends Head { run: Run; rows: ProgressRow[]; left_out:
 
 // Eligibility screening. result: the AI's recommendation; decision: the committee's.
 export type CheckResult = "MET" | "NOT_MET" | "UNSURE";
-// ELIGIBILITY: pass/fail, decides who is evaluated. DOCUMENT: a document every bid must
-// include; one decided as not submitted is flagged, never disqualifying.
-export type ScreenStage = "ELIGIBILITY" | "DOCUMENT";
+export type ScreenStage = "ELIGIBILITY";
 export type FirmStatus = "qualified" | "not_qualified" | "open" | "checking" | "not_checked" | "failed";
 export interface Requirement {
   criterion_id: string; code: string; stage: ScreenStage; title: string; meaning: string;
-  number: string; // as the RFP numbers it (else the code): what the committee sees
+  number: string; // the RFP's own numbers when distinct, else a running 1, 2, 3 ...
 }
 export interface EligibilityCell {
   code: string; number: string; stage: ScreenStage; check_id: string | null; result: CheckResult | null; decision: "MET" | "NOT_MET" | null;
@@ -67,7 +67,6 @@ export interface EligibilityCell {
 export interface EligibilityFirm {
   submission_id: string; name: string; legal_name: string; cells: EligibilityCell[];
   status: FirmStatus; label: string; open: number; error: string | null;
-  missing: string[]; // codes of required documents decided as not submitted
   checking: boolean; // being checked again: the last results stay shown until replaced
   included: boolean; // ticked on the participants page; unticked firms keep results, are not evaluated
 }

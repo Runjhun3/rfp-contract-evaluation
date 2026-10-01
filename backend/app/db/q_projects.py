@@ -76,12 +76,12 @@ def criteria(cur, tender_id: str) -> list[dict]:
     return all_rows(cur, """
         select criterion_id::text, code, parent_code, stage, kind, title, rfp_text, meaning,
                trim_scale(max_marks) as max_marks, max_items, scored_by, rfp_page, count_bands,
-               rfp_no,
+               rfp_no, source_reference, considered, classification_unsure,
                array_to_string(array(select trim_scale(m) from unnest(allowed_item_marks) m),
                                ', ') as allowed
         from criterion
         where tender_id = %s
-          and not (stage in ('ELIGIBILITY', 'DOCUMENT') and retired)
+          and not (stage = 'ELIGIBILITY' and retired)
         order by stage desc, code""", (tender_id,))
 
 
@@ -89,10 +89,10 @@ def criterion_rows(cur, tender_id: str) -> list[dict]:
     """Every criterion as the worker needs it (exact numbers and lists, in code order)."""
     return all_rows(cur, """select criterion_id::text, code, parent_code, stage, scored_by,
                                    title, meaning, kind, rfp_text, max_marks, max_items,
-                                   allowed_item_marks, count_bands, proof
+                                   allowed_item_marks, count_bands, proof, considered
                             from criterion
                             where tender_id = %s
-                              and not (stage in ('ELIGIBILITY', 'DOCUMENT') and retired)
+                              and not (stage = 'ELIGIBILITY' and retired)
                             order by code""", (tender_id,))
 
 
@@ -111,16 +111,16 @@ def drop_stale_criteria(cur, tender_id: str, codes: list[str]) -> None:
                 (tender_id, codes))
     cur.execute("""update criterion set retired = not (code = any(%s))
                    where tender_id = %s
-                     and stage in ('ELIGIBILITY', 'DOCUMENT')""",
+                     and stage = 'ELIGIBILITY'""",
                 (codes, tender_id))
 
 
 def update_criterion(cur, criterion_id: str, fields: dict) -> None:
     cur.execute("""update criterion set meaning = %s, kind = %s, max_marks = %s, max_items = %s,
-                     allowed_item_marks = %s::numeric[], scored_by = %s, stage = %s
+                     allowed_item_marks = %s::numeric[], scored_by = %s, considered = %s
                    where criterion_id = %s""",
                 (fields["meaning"], fields["kind"] or None, fields["max_marks"],
-                 fields["max_items"], fields["allowed"], fields["scored_by"], fields["stage"],
+                 fields["max_items"], fields["allowed"], fields["scored_by"], fields["considered"],
                  criterion_id))
 
 

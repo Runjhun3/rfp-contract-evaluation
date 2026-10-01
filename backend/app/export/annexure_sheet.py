@@ -15,7 +15,6 @@ from zoneinfo import ZoneInfo
 from openpyxl import Workbook
 
 from app.config import TIMEZONE
-from app.eligibility import number
 from app.export.firm_sheet import firm_sheet
 from app.export.sheet_data import criterion_marks, eligibility_word
 from app.export.sheet_style import BOLD, TITLE, bold_row, style
@@ -67,20 +66,15 @@ def _summary(sheet, data: dict) -> None:
 
 
 def _eligibility(sheet, data: dict) -> None:
-    """One row per eligibility criterion (the committee's decision for each firm), then
-    each firm's eligibility; then one row per required document. Nothing when the tender
-    screens nothing."""
+    """One row per considered eligibility criterion, then each firm's eligibility."""
     checks = {(f["row"]["submission_id"], c["criterion_id"]): c
               for f in data["firms"] for c in f["eligibility"]}
     rows = data["results"]["rows"]
-    for stage, kind in (("ELIGIBILITY", "pass/fail"), ("DOCUMENT", "required")):
-        mine = [r for r in data["requirements"] if r["stage"] == stage]
-        for req in mine:
-            sheet.append([number(req), req["title"], kind,
-                          *[eligibility_word(checks.get((r["submission_id"],
-                                                         req["criterion_id"])))
-                            for r in rows]])
-        if mine and stage == "ELIGIBILITY":
-            sheet.append(["", "Eligibility", None,
-                          *[ELIGIBLE.get(r.get("eligibility"), "pending") for r in rows]])
-            bold_row(sheet, sheet.max_row)
+    for req in data["requirements"]:
+        sheet.append([req["number"], req["title"], "pass/fail",
+                      *[eligibility_word(checks.get((r["submission_id"], req["criterion_id"])))
+                        for r in rows]])
+    if data["requirements"]:
+        sheet.append(["", "Eligibility", None,
+                      *[ELIGIBLE.get(r.get("eligibility"), "pending") for r in rows]])
+        bold_row(sheet, sheet.max_row)

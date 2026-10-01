@@ -2,8 +2,10 @@
 
 - Every response is cached on disk (key = model + system + user + page images), so re-runs cost
   nothing and a run can be replayed without AWS (LLM_MODE=replay).
-- Every response is parsed into a Pydantic model; invalid JSON gets one retry
-  with the error appended, then fails.
+- Every response is parsed into a Pydantic model. A model that corrects itself mid-answer
+  may write an object, a note, then the corrected object: the last object that fits wins.
+- An unusable response gets one retry with the error appended, then fails. A failed ask
+  leaves nothing in the cache, so a re-run asks again instead of replaying the failure.
 """
 import hashlib
 import json
@@ -22,11 +24,36 @@ class ReplayMiss(RuntimeError):
     pass
 
 
-def extract_json(text: str) -> dict:
-    start, end = text.find("{"), text.rfind("}")
-    if start < 0 or end < start:
+def json_objects(text: str) -> list[dict]:
+    """Every complete top-level JSON object in a response, in order. Text around and
+    between them (code fences, notes) is skipped."""
+    decoder = json.JSONDecoder()
+    found, at = [], text.find("{")
+    while at >= 0:
+        try:
+            value, end = decoder.raw_decode(text, at)
+        except json.JSONDecodeError:
+            at = text.find("{", at + 1)
+            continue
+        if isinstance(value, dict):
+            found.append(value)
+        at = text.find("{", end)
+    return found
+
+
+def parse(text: str, model: type[M]) -> M:
+    """The last object in the response that fits the model: a correction comes after the
+    answer it corrects."""
+    objects = json_objects(text)
+    if not objects:
         raise ValueError("no JSON object in response")
-    return json.loads(text[start:end + 1])
+    first_error = None
+    for value in reversed(objects):
+        try:
+            return model.model_validate(value)
+        except ValidationError as err:
+            first_error = first_error or err
+    raise first_error
 
 
 class LlmClient:
@@ -39,13 +66,18 @@ class LlmClient:
                  images: list[bytes] | None = None) -> M:
         """images: PNG page images sent before the text (e.g. CV tables whose text layer
         is out of reading order)."""
-        text = self.complete(system, user, images)
         try:
-            return model.model_validate(extract_json(text))
-        except (ValueError, ValidationError) as err:
+            return parse(self.complete(system, user, images), model)
+        except ValueError as err:
             retry = (f"{user}\n\nYour previous answer could not be used: {err}\n"
-                     f"Previous answer:\n{text}\nReturn corrected JSON only.")
-            return model.model_validate(extract_json(self.complete(system, retry, images)))
+                     "Start again from the source text. Return one complete, valid JSON object "
+                     "only; do not repeat the previous answer.")
+        try:
+            return parse(self.complete(system, retry, images), model)
+        except ValueError:
+            self.forget(system, user, images)
+            self.forget(system, retry, images)
+            raise
 
     def complete(self, system: str, user: str, images: list[bytes] | None = None) -> str:
         images = images or []
@@ -58,6 +90,11 @@ class LlmClient:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         return text
+
+    def forget(self, system: str, user: str, images: list[bytes] | None = None) -> None:
+        """Drop a cached response that could not be used. Replay mode keeps its recordings."""
+        if self.settings.llm_mode != "replay":
+            self._cache_path(system, user, images or []).unlink(missing_ok=True)
 
     def _cache_path(self, system: str, user: str, images: list[bytes]) -> Path:
         raw = f"{self.settings.claude_model}\x00{system}\x00{user}".encode()

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     llm_mode: str = "bedrock"            # bedrock | replay (cache only, no AWS)
     llm_cache_dir: str = "runs/_llm_cache"
-    llm_max_tokens: int = 8000
+    llm_max_tokens: int = 12000
 
     ocr_engine: str = "textract"         # textract | tesseract (local dev)
     ocr_min_chars: int = 50              # less text than this -> OCR

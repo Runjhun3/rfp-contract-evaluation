@@ -13,9 +13,7 @@ import { useApi } from "../useApi";
 
 // While the worker is still reading the RFP there are no criteria: check again every 10 s.
 const waitForCriteria = (d: CriteriaPage) => (d.criteria.length ? null : 10000);
-// Screened rows (eligibility criteria, required documents) are not scored: each kind has
-// its own table above the scored criteria.
-const isScreened = (c: Criterion) => c.stage === "ELIGIBILITY" || c.stage === "DOCUMENT";
+const isScreened = (c: Criterion) => c.stage === "ELIGIBILITY";
 
 export default function Criteria() {
   const { tenderId } = useParams();
@@ -69,10 +67,8 @@ export default function Criteria() {
           <>
             <p className="sub">Check each criterion against the RFP. Marks, limits and the rule text below are what the evaluator applies.</p>
             <form className="page-form" onSubmit={save}>
-              {(["ELIGIBILITY", "DOCUMENT"] as const).map((stage) => rows.some((c) => c.stage === stage) && (
-                <EligibilityTable key={stage} stage={stage} rows={rows.filter((c) => c.stage === stage)}
-                  onChange={(changed) => setRows([...changed, ...rows.filter((c) => c.stage !== stage)])} />
-              ))}
+              {rows.some(isScreened) && <EligibilityTable rows={rows.filter(isScreened)}
+                onChange={(changed) => setRows([...changed, ...rows.filter((c) => !isScreened(c))])} />}
               <Section title="Evaluation criteria · marks"
                 aside={<span className="chip blue num">Scored criteria total {marks(data.technical_total)}</span>}>
                 <CriteriaTable rows={rows.filter((c) => !isScreened(c))}

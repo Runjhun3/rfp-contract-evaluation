@@ -20,7 +20,7 @@ def scored(rows: list[dict]) -> tuple[list[Criterion], dict[str, str]]:
 
 
 def requirements(rows: list[dict]) -> list[Requirement]:
-    """What screening checks: eligibility criteria and required documents, in code order."""
+    """The considered eligibility criteria to screen, in code order."""
     return [Requirement(criterion_id=r["criterion_id"], code=r["code"], title=r["title"],
                         meaning=r["meaning"], rfp_text=r["rfp_text"] or "", proof=r["proof"])
-            for r in rows if r["stage"] in SCREENED]
+            for r in rows if r["stage"] in SCREENED and r.get("considered", True)]

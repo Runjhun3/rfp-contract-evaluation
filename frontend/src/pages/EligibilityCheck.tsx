@@ -23,9 +23,9 @@ export default function EligibilityCheck() {
   const pageNo = Number(params.get("page")) || check?.first_page || 1;
   const at = (page: number) => `?page=${page}`;
   const passed = check ? check.proof.filter((c) => c.state === "passed") : [];
-  // After a decision, go on to the firm's next undecided check.
+  // After a decision, go on to the next AI-uncertain check.
   const saved = () => {
-    const next = firm.cells.find((c) => c.check_id && !c.decision && c.check_id !== check?.check_id);
+    const next = firm.cells.find((c) => c.check_id && c.result === "UNSURE" && !c.decision && c.check_id !== check?.check_id);
     if (next?.check_id) navigate(`/eligibility/${next.check_id}`);
     else reload();
   };
@@ -44,7 +44,6 @@ export default function EligibilityCheck() {
           <span>
             <span className={CHIP[firm.status]}>{firm.label}</span>
             {firm.checking && firm.status !== "checking" && <span className="small muted"> · Checking again…</span>}
-            {firm.missing.length > 0 && <span className="small warn-text"> · Missing document{firm.missing.length > 1 ? "s" : ""} {firm.missing.join(", ")}</span>}
           </span>
         </div>
       </div>
@@ -55,7 +54,7 @@ export default function EligibilityCheck() {
             <>
               <h2>{titled(check.number, check.title)}</h2>
               <div className="verdict">
-                <strong>{check.stage === "DOCUMENT" ? "Required document" : "Eligibility criterion"} · AI: {word(check.stage, check.result)}</strong>
+                <strong>Eligibility criterion · AI: {word(check.stage, check.result)}</strong>
                 <span className="muted"> · checked {check.checked}{check.pages.length ? ` · ${check.pages.length === 1 ? "page" : "pages"} ${pageRanges(check.pages)}` : ""}</span>
               </div>
               <div className={check.result === "UNSURE" ? "callout" : undefined}>

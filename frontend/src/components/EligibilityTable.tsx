@@ -1,47 +1,70 @@
-import { GROUPS } from "../eligibility";
-import type { Criterion, ScreenStage } from "../types";
+import type { Criterion } from "../types";
 import Section from "./Section";
 
-type Props = { stage: ScreenStage; rows: Criterion[]; onChange: (rows: Criterion[]) => void };
+type Props = { rows: Criterion[]; onChange: (rows: Criterion[]) => void };
 
-const STAGE_NAME: Record<ScreenStage, string> = {
-  ELIGIBILITY: "Eligibility criterion", DOCUMENT: "Required document",
-};
+// Enough lines to show the wording without a scrollbar, within reason.
+const lines = (text: string | null) =>
+  Math.min(5, Math.max(2, Math.ceil((text ?? "").length / 60)));
 
-// What screening checks, read from the RFP: eligibility criteria (pass/fail) or the
-// documents every bid must include (flagged if missing). Each is checked by the AI on
-// the pages that prove it and decided by the committee. The plain-words meaning is what
-// the bid's pages are matched against, so it can be corrected here.
-export default function EligibilityTable({ stage, rows, onChange }: Props) {
-  const group = GROUPS.find((g) => g.stage === stage)!;
-  const edit = (i: number, key: "meaning" | "stage") => (e: { target: { value: string } }) =>
-    onChange(rows.map((r, j) => (j === i ? { ...r, [key]: e.target.value } : r)));
+const source = (c: Criterion) =>
+  `${c.source_reference ?? c.rfp_no ?? c.code}${c.rfp_page ? ` · p.${c.rfp_page}` : ""}`;
+
+// Extracted eligibility rows may be left out before approval. Left-out rows never
+// reach the LLM or any later stage; the wording stays editable. A row the AI could
+// not classify starts left out and asks the committee to choose.
+export default function EligibilityTable({ rows, onChange }: Props) {
+  const set = (i: number, patch: Partial<Criterion>) =>
+    onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const considered = rows.filter((r) => r.considered).length;
+  const aside = (
+    <span className="chip blue num">
+      {considered} of {rows.length} considered · checked by the AI
+    </span>
+  );
   return (
-    <Section title={`${group.label} · ${group.note}`}
-      aside={<span className="chip blue">{rows.length} · checked by the AI, decided by the committee</span>}>
+    <Section title="Eligibility criteria · pass or fail" aside={aside}>
       <table className="table">
         <thead>
-          <tr><th>Code</th><th>What the bidder must show</th><th>Counts as</th></tr>
+          <tr>
+            <th>Criterion</th><th>What the bidder must show</th><th>Counts for qualification</th>
+          </tr>
         </thead>
         <tbody>
           {rows.map((c, i) => (
-            <tr key={c.criterion_id}>
+            <tr key={c.criterion_id} className={c.considered ? undefined : "out"}>
               <td>
-                <strong>{c.rfp_no ?? c.code}</strong><br />
-                <span className="small muted">{c.title}{c.rfp_page ? ` · p.${c.rfp_page}` : ""}</span>
+                <strong>{c.title}</strong><br />
+                <span className="small muted">{source(c)}</span>
               </td>
               <td>
-                <label className="sr-only" htmlFor={`m-${c.criterion_id}`}>Meaning of {c.title}</label>
-                <textarea id={`m-${c.criterion_id}`} rows={2} value={c.meaning ?? ""} onChange={edit(i, "meaning")} />
-                <details><summary className="small">RFP text</summary><p className="small">{c.rfp_text}</p></details>
+                <label className="sr-only" htmlFor={`m-${c.criterion_id}`}>
+                  Meaning of {c.title}
+                </label>
+                <textarea id={`m-${c.criterion_id}`} rows={lines(c.meaning)}
+                  value={c.meaning ?? ""} onChange={(e) => set(i, { meaning: e.target.value })} />
+                <details>
+                  <summary className="small">RFP text</summary>
+                  <p className="small">{c.rfp_text}</p>
+                </details>
               </td>
               <td>
-                {/* The committee may treat a required document as an eligibility criterion, or the
-                    other way round; the row moves to the other table, saved with the criteria. */}
-                <label className="sr-only" htmlFor={`s-${c.criterion_id}`}>{c.title} counts as</label>
-                <select id={`s-${c.criterion_id}`} value={c.stage} onChange={edit(i, "stage")}>
-                  {GROUPS.map((g) => <option key={g.stage} value={g.stage}>{STAGE_NAME[g.stage]}</option>)}
-                </select>
+                <fieldset className="seg">
+                  <legend className="sr-only">Does {c.title} count for qualification?</legend>
+                  {[true, false].map((on) => (
+                    <label key={String(on)}
+                      className={c.considered === on ? `on${on ? "" : " off"}` : undefined}>
+                      <input type="radio" name={`c-${c.criterion_id}`}
+                        checked={c.considered === on} onChange={() => set(i, { considered: on })} />
+                      {on ? "Consider" : "Leave out"}
+                    </label>
+                  ))}
+                </fieldset>
+                {c.classification_unsure && (
+                  <p className="small warn-text">
+                    The AI is unsure this decides qualification. Please choose.
+                  </p>
+                )}
               </td>
             </tr>
           ))}

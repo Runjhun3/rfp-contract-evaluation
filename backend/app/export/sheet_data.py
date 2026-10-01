@@ -8,9 +8,7 @@ from app.db import q_eligibility, q_projects, q_results
 from app.eligibility import requirements
 from app.results import project_results
 
-# A check in words: an eligibility criterion is met or not; a document submitted or not.
-WORDS = {"ELIGIBILITY": {"MET": "met", "NOT_MET": "not met", "UNSURE": "unsure"},
-         "DOCUMENT": {"MET": "submitted", "NOT_MET": "not submitted", "UNSURE": "unsure"}}
+WORDS = {"ELIGIBILITY": {"MET": "met", "NOT_MET": "not met", "UNSURE": "unsure"}}
 
 
 def sheet_data(cur, tender_id: str) -> dict | None:
@@ -48,7 +46,7 @@ def eligibility_word(check: dict | None) -> str:
     words = WORDS[check["stage"]]
     if check["decision"]:
         return words[check["decision"]]
-    return f"not decided (AI: {words[check['result']]})"
+    return f"AI: {words[check['result']]}" if check["result"] != "UNSURE" else "awaiting committee"
 
 
 def criterion_marks(criterion: dict, row: dict, criteria: list[dict]):

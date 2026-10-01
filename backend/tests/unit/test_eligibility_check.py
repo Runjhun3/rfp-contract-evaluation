@@ -88,7 +88,7 @@ def test_merging_chunks_keeps_the_proof_whichever_chunk_found_it():
     assert len(merged) == 1 and merged[0].proof == "CA certificate as per the format"
 
 
-def test_required_documents_are_numbered_apart_from_eligibility_criteria():
+def test_every_screened_row_becomes_one_eligibility_criterion():
     def row(code, stage, title):
         return ExtractedCriterion(code=code, stage=stage, title=title, rfp_text="t",
                                   meaning="m")
@@ -96,4 +96,4 @@ def test_required_documents_are_numbered_apart_from_eligibility_criteria():
                     row("E.1", "DOCUMENT", "Power of attorney"),
                     row("A.1", "TECHNICAL", "Projects")])
     assert [(c.code, c.stage) for c in merged] == [
-        ("E.1", "ELIGIBILITY"), ("D.1", "DOCUMENT"), ("D.2", "DOCUMENT"), ("A.1", "TECHNICAL")]
+        ("E.1", "ELIGIBILITY"), ("E.2", "ELIGIBILITY"), ("E.3", "ELIGIBILITY"), ("A.1", "TECHNICAL")]

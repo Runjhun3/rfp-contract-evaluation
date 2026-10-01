@@ -12,16 +12,8 @@ from pathlib import Path
 from app.schemas.records import Criterion
 
 _FENCE = re.compile(r"```text\n(.*?)```", re.S)
-# Stages screened before evaluation, never scored: eligibility criteria (pass/fail,
-# they decide who is evaluated) and documents every bid must include (flagged).
-SCREENED = ("ELIGIBILITY", "DOCUMENT")
-
-
-def edited_stage(current: str, sent: str | None) -> str:
-    """The stage a criterion keeps after an edit. The committee may move a screened row
-    between the screened stages (e.g. treat a required document as an eligibility
-    criterion); any other change of stage is ignored."""
-    return sent if current in SCREENED and sent in SCREENED else current
+# Eligibility rows are screened before evaluation and are never scored.
+SCREENED = ("ELIGIBILITY",)
 
 
 def load_criteria(path: Path) -> list[Criterion]:
@@ -32,7 +24,7 @@ def load_criteria(path: Path) -> list[Criterion]:
 def scoring(rows: list[dict]) -> dict[str, str]:
     """How each criterion with marks is scored, by code. A criterion with marks entered
     is always scored and shown; only group headings (whose marks are their sub-rows')
-    and screened rows (eligibility criteria, required documents) are left out.
+    and eligibility rows are left out.
       PROJECT / CV : the AI scores it per project or per CV,
       BID          : the AI scores it once on the whole bid (e.g. turnover),
       COMMITTEE    : the committee enters its marks (e.g. a presentation)."""

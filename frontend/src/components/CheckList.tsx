@@ -4,9 +4,10 @@ import type { EligibilityFirm } from "../types";
 
 type Props = { firm: EligibilityFirm; titles: Record<string, string>; selected: string | null };
 
-// A firm's screening checks, grouped as eligibility criteria and required documents,
+// A firm's screening checks, grouped as eligibility criteria,
 // one line each, like the items of a score on the evidence page: the badge is the
-// committee's decision (✓) once made, else the AI's finding, highlighted until decided.
+// committee's decision once made, else the AI's finding, green ✓ / red ✗; a dotted
+// underline marks a committee decision, and only an undecided AI-unsure ? is highlighted.
 export default function CheckList({ firm, titles, selected }: Props) {
   return (
     <section className="list" aria-label="Checks">
@@ -26,13 +27,16 @@ export default function CheckList({ firm, titles, selected }: Props) {
               }
               const decided = c.decision !== null;
               const shown = c.decision ?? c.result;
-              const said = `${word(c.stage, shown)}${decided ? ", decided by the committee" : ", not decided yet"}`;
+              const pending = !decided && c.result === "UNSURE";
+              const said = `${word(c.stage, shown)}${decided ? ", decided by the committee"
+                : pending ? ", committee decision needed" : ", AI finding"}`;
               return (
                 <Link key={c.code} to={`/eligibility/${c.check_id}`} title={name}
                   className={`item${c.check_id === selected ? " selected" : ""}`}>
                   <span />
                   <span className="name">{name}</span>
-                  <span className={`badge ${MARK[shown].cls}${decided ? "" : " pending"}`} title={said}>
+                  <span className={`badge ${MARK[shown].cls}${decided ? " decided" : ""}${pending ? " pending" : ""}`}
+                    title={said}>
                     <span aria-hidden="true">{MARK[shown].sign}</span><span className="sr-only">{said}</span>
                   </span>
                 </Link>
@@ -42,7 +46,8 @@ export default function CheckList({ firm, titles, selected }: Props) {
         );
       })}
       <span className="small muted">
-        ✓ met / submitted · ✗ not met / not submitted · ? AI unsure · highlighted = the AI's finding, not decided yet
+        ✓ met · ✗ not met · ? AI unsure, highlighted until the committee decides ·
+        dotted underline = committee decision
       </span>
     </section>
   );

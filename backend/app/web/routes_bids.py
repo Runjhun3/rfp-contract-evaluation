@@ -1,7 +1,7 @@
 """API: pick firms, add a firm, upload or replace each bid."""
 from starlette.routing import Route
 
-from app import eligibility, files, removal
+from app import eligibility_actions, files, removal
 from app.db import q_bids, q_projects
 from app.db.connection import transaction
 from app.db.repo_setup import LOCAL_USER_ID
@@ -67,7 +67,7 @@ async def upload_bid(request):
     files.put(request.app.state.settings, key, data)
     with _db(request) as cur:
         q_bids.add_file(cur, submission_id, name, key, sha, pages, LOCAL_USER_ID)
-        checking = eligibility.queue_checks(cur, sub["tender_id"], [submission_id])
+        checking = eligibility_actions.queue_checks(cur, sub["tender_id"], [submission_id])
     return ok(None, "Bid uploaded; checking eligibility" if checking else "Bid uploaded", 201)
 
 

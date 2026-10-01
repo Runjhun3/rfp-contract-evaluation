@@ -1,11 +1,9 @@
 from decimal import Decimal
 
-from app.criteria import (edited_stage, group_codes, group_view, items_warning,
-                          missing_max_marks, review_view, scored_total, scoring)
+from app.criteria import (group_codes, group_view, items_warning, missing_max_marks, review_view,
+                          scored_total, scoring)
 from app.ingest.extract_criteria import (ExtractedCriterion, GeneralCondition, build_block,
                                          merge)
-
-
 def row(code, max_marks, kind="PROJECT", scored_by="LLM", stage="TECHNICAL", parent=None):
     return {"code": code, "max_marks": max_marks, "kind": kind, "scored_by": scored_by,
             "stage": stage, "parent_code": parent, "rfp_text": "t", "meaning": "m",
@@ -98,6 +96,14 @@ def test_eligibility_rows_from_several_chunks_are_numbered_once_each():
         ("A.1", "A.1")]
 
 
+def test_source_reference_stays_separate_from_the_criterion_title():
+    item = extracted("E.1", title="Bid Security / EMD")
+    item.source_reference = "Annexure III, Clause 1, S.No. 1; Clause 11"
+    merged = merge([item])[0]
+    assert merged.title == "Bid Security / EMD"
+    assert merged.source_reference == "Annexure III, Clause 1, S.No. 1; Clause 11"
+
+
 def test_every_criterion_with_marks_is_scored_somehow():
     rows = [row("A", Decimal("15"), kind=None),                                # group heading
             row("A.1", Decimal("5"), kind=None, parent="A"),                   # e.g. turnover
@@ -109,9 +115,19 @@ def test_every_criterion_with_marks_is_scored_somehow():
     assert scoring(rows) == {"A.1": "BID", "A.2": "PROJECT", "B.1": "CV", "C": "COMMITTEE"}
 
 
-def test_the_committee_can_move_a_row_between_eligibility_and_required_documents_only():
-    assert edited_stage("DOCUMENT", "ELIGIBILITY") == "ELIGIBILITY"
-    assert edited_stage("ELIGIBILITY", "DOCUMENT") == "DOCUMENT"
-    assert edited_stage("DOCUMENT", None) == "DOCUMENT"               # not sent: unchanged
-    assert edited_stage("TECHNICAL", "ELIGIBILITY") == "TECHNICAL"    # scored rows stay scored
-    assert edited_stage("DOCUMENT", "TECHNICAL") == "DOCUMENT"
+def test_a_presentation_is_always_marked_by_the_committee():
+    from app.ingest.extract_criteria import ExtractedCriterion
+    from app.jobs.handlers import _upsert_criterion
+
+    class Cursor:
+        def execute(self, sql, params):
+            self.params = params
+
+    cur = Cursor()
+    for stage, scored_by, expected in [("PRESENTATION", "LLM", "COMMITTEE"),
+                                       ("TECHNICAL", "COMMITTEE", "COMMITTEE"),
+                                       ("TECHNICAL", "LLM", "LLM")]:
+        _upsert_criterion(cur, "t", ExtractedCriterion(
+            code="C", stage=stage, title="Talk", rfp_text="Talk", meaning="Talk",
+            scored_by=scored_by))
+        assert cur.params[11] == expected
