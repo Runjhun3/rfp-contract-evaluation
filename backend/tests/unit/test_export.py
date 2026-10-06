@@ -94,12 +94,13 @@ def _book():
              {"criterion_id": "e1", "code": "E.1", "number": "1", "stage": "ELIGIBILITY",
               "title": "Turnover"},
              {"criterion_id": "e2", "code": "E.2", "number": "2", "stage": "ELIGIBILITY",
-              "title": "Bid form"}]})))
+              "title": "Bid form"}],
+         "history": [], "mark_history": [], "events": [], "approvals": []})))
 
 
 def test_the_summary_compares_firms_on_eligibility_and_marks():
     book = _book()
-    assert book.sheetnames == ["Summary", "Firm One"]              # "/" not allowed
+    assert book.sheetnames == ["Summary", "Firm One", "Audit log"]   # "/" not allowed
     rows = {r[1]: r for r in book["Summary"].iter_rows(min_row=6, values_only=True) if r[1]}
     assert rows["Turnover"][2:4] == ("pass/fail", "met")
     assert rows["Eligibility"][3] == "Qualified"

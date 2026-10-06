@@ -18,7 +18,7 @@ def bidders(cur, search: str = "") -> list[dict]:
 
 
 def bidder(cur, bidder_id: str) -> dict | None:
-    return one_row(cur, f"""select b.bidder_id::text, b.short_name, {_BIDS}
+    return one_row(cur, f"""select b.bidder_id::text, b.short_name, b.legal_name, {_BIDS}
                             from bidder b where b.bidder_id = %s""", (bidder_id,))
 
 
@@ -80,3 +80,21 @@ def add_file(cur, submission_id: str, file_name: str, key: str, sha: str, pages:
 
 def ready_submissions(cur, tender_id: str) -> list[dict]:
     return [s for s in submissions(cur, tender_id) if s["file_id"]]
+
+
+def participants(cur, tender_id: str) -> list[dict]:
+    """Every firm ever ticked in the project, with whether it takes part now."""
+    return all_rows(cur, """select s.bidder_id::text, b.short_name, s.included
+                            from bid_submission s join bidder b using (bidder_id)
+                            where s.tender_id = %s""", (tender_id,))
+
+
+def bidder_by_legal_name(cur, legal_name: str) -> dict | None:
+    return one_row(cur, """select bidder_id::text, legal_name, short_name from bidder
+                           where legal_name = %s""", (legal_name,))
+
+
+def firm_projects(cur, bidder_id: str) -> list[str]:
+    """The projects a firm was ticked in (now or before)."""
+    return [r["tender_id"] for r in all_rows(cur, """select tender_id::text from bid_submission
+                                                     where bidder_id = %s""", (bidder_id,))]

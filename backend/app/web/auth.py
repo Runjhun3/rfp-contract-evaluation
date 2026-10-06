@@ -3,13 +3,15 @@
 Every /api/ call needs a signed-in session except the ones in PUBLIC; RequireLogin
 answers 401 otherwise. Every write (POST) must also carry the session's CSRF token
 in the X-CSRF-Token header, so another site cannot act from the user's browser.
-Actions are still recorded against the one built-in user (migration 002_local_user).
+Actions are recorded against the signed-in account's app_user row (current_user).
 """
 import hmac
 import secrets
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+
+from app.db.repo_setup import LOCAL_USER_ID
 
 CSRF_HEADER = "x-csrf-token"
 PUBLIC = {"/api/v1/session", "/api/v1/login"}
@@ -29,6 +31,12 @@ def check_csrf(request: Request) -> None:
     sent = request.headers.get(CSRF_HEADER, "")
     if not expected or not hmac.compare_digest(sent, expected):
         raise Forbidden()
+
+
+def current_user(request: Request) -> str:
+    """Who is acting: the signed-in account's user id. A session signed in before
+    accounts were recorded falls back to the built-in local user."""
+    return request.session.get("user_id") or LOCAL_USER_ID
 
 
 def credentials_ok(username: str, password: str, want_user: str, want_password: str) -> bool:

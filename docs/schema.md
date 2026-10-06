@@ -11,6 +11,7 @@ PostgreSQL 16 on the same EC2 VM as the service (see deploy-ec2.md).
 | RFP upload | `tender_document` | stored in S3, sha256 de-duplicates |
 | Criteria (review & approve) | `criterion`, `evaluation_prompt` | approved block is versioned |
 | Participants (EY, Deloitte ...) | `bidder` (master list) + `bid_submission` | picking a bidder creates a submission |
+| Export "Audit log": participants, firms and jobs | `audit_event` (append-only) + `job.created_by`, `job.cause` | firms ticked/unticked, added, renamed, deleted; every job with who started it and why (017) |
 | Bid upload per participant | `submission_file` → `page` | text + OCR only, no LLM output |
 | "Evaluate" button | `evaluation_run` + `run_submission` + `job` | one run covers the selected bidders |
 | Progress bar per bidder | `run_submission.stage`, `items_done/items_total` | |
@@ -18,14 +19,16 @@ PostgreSQL 16 on the same EC2 VM as the service (see deploy-ec2.md).
 | Evidence drawer | `bid_item`, `item_result`, `evidence_check`, `copy_group` | quotes + page links |
 | Override / accept | `review_decision` (append-only, reason ≥ 10 chars) | |
 | Eligibility screening | `eligibility_check` → `eligibility_decision` (both append-only) | one AI check per bid file × requirement; the committee decides each |
-| Presentation marks | `manual_score` | 35 marks, entered by committee |
+| Presentation marks | `manual_score` + `manual_score_history` (append-only) | current mark, and every mark entered with who and why it changed |
+| Export "Audit log": criteria setup | `criteria_extraction`, `criterion_edit`, `prompt_draft_save`, `evaluation_prompt` (all append-only) | extractions, edited fields, rule text saves and approvals (016) |
 
 ## Shape
 ```
 app_user
-tender ─┬─ tender_document
+tender ─┬─ tender_document ─── criteria_extraction (what each extraction returned)
         ├─ criterion
-        ├─ evaluation_prompt
+        ├─ criterion_edit (no FK to criterion: history outlives a dropped row)
+        ├─ evaluation_prompt ─── prompt_draft_save
         ├─ bid_submission (bidder) ─┬─ submission_file ─── page
         │                           └─ eligibility_check ─── eligibility_decision
         ├─ evaluation_run ─┬─ run_submission (progress per bidder)
@@ -34,7 +37,8 @@ tender ─┬─ tender_document
         │                  ├─ bid_item ─┬─ item_result
         │                  │            └─ evidence_check
         │                  └─ criterion_score ─── review_decision
-        ├─ manual_score
+        ├─ manual_score ─── manual_score_history (per submission × criterion)
+        ├─ audit_event (tender_id null: the shared firm list)
         └─ job
 views: final_score (review wins over checked marks), run_total (/65 + /35)
 ```
@@ -60,6 +64,18 @@ views: final_score (review wins over checked marks), run_total (/65 + /35)
   eligibility row.
   An eligibility row a re-extraction no longer yields but checks refer to is kept
   with `criterion.retired` = true and is no longer screened or shown.
+- **Append-only audit trail (016).** `criterion_edit` has a row per changed field
+  (source COMMITTEE, or EXTRACTION with `edited_by` null for the AI);
+  `criteria_extraction` keeps each extraction's answer as JSON; `prompt_draft_save`
+  keeps every save of a rule text version; `evaluation_prompt.created_by` and
+  `approved_by` say who made and approved each version. `manual_score` holds the
+  current committee mark and `manual_score_history` every mark entered (a change
+  needs a reason). Actors are `app_user` rows: the signed-in account gets its own row
+  on first sign-in (`q_users.account`); rows from before 016 point at "Local user".
+  `audit_event` (017) records participants and the firm list; its `target` is the
+  firm's name at the time and `details.bidder_id` links it, so it outlives a rename
+  or deletion. `job.created_by` / `job.cause` say whose action queued each job, and
+  `evaluation_prompt.approved_criteria` keeps the criteria as approved.
 - **One item, one criterion.** A project repeated under A.1/A.2/A.3 is three
   `bid_item` rows sharing a `copy_group_id`; `copy_group.mismatches` lists
   any disagreement.

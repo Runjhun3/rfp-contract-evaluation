@@ -3,6 +3,51 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-055 The audit trail is shown in the export only (2026-10-06)
+Supersedes the "Change history" cards of D-053 and D-054 on the Criteria and
+Participants pages: they are removed, so those pages show only the work. Everything
+is still recorded as before and shown in the export's "Audit log" sheet (criteria
+setup; participants, firms and jobs; approved criteria; committee marks). The results
+page keeps its hover note on committee marks, and the eligibility grid its note on
+who started a firm's check.
+
+## D-054 Participants, firms, jobs and approvals join the audit trail (2026-10-01)
+Follows D-053 (migration 017).
+- Participants: ticking or unticking a firm records "Participant added / removed"
+  with who and when (no reason asked). Only real changes are recorded.
+- Firm list: "Firm added", "Firm renamed" (adding a known legal name with a new short
+  name used to overwrite it silently) and "Firm deleted". Before an unused firm is
+  deleted, each project it was ticked in records its removal, so the project's own
+  trail keeps it. Events keep the firm's name as it was.
+- Jobs: each job keeps who queued it and which action did (RFP uploaded, criteria
+  approved, bid uploaded, check eligibility again, evaluation started); automatic
+  checks are credited to the person whose action queued them. The eligibility grid
+  shows it on a firm's status.
+- Approval: the criteria as they stand are kept with the approved rule text, so each
+  run (which points to its approved version) can be traced to the exact criteria.
+Shown on the Participants page ("Change history") and in the export's "Audit log".
+
+## D-053 An audit trail for the project setup and committee marks (2026-10-01)
+Committee decisions on marks and eligibility were already append-only, but the setup
+around them was overwritten: criteria edits, draft rule text, committee marks and
+re-extractions left no trace, and every action was recorded as "Local user".
+Now (migration 016):
+- Who: the `.env` account stays the one sign-in (D-042), but it gets its own
+  `app_user` row on first sign-in and every action records it (`auth.current_user`).
+  When named accounts come, they are new rows and the trail names each person.
+- Criteria edits: each changed field is a `criterion_edit` row (old and new value),
+  by the committee or by a re-extraction (the AI). Leaving out an eligibility row is
+  recorded like any edit; no reason is asked for now.
+- Rule text: every save of a version's text is kept (`prompt_draft_save`), with who
+  created and approved each version.
+- Committee marks: every mark entered is kept (`manual_score_history`); changing a
+  saved mark needs a reason of at least 10 characters. The results page shows who
+  entered a mark and what it replaced on hover.
+- Extractions: what the AI returned each time is kept as JSON, with prompt version
+  and model.
+Shown on the Criteria page ("Change history") and as the export's "Audit log" sheet.
+Append-only is kept by the code (rule 10), as for the other decision tables.
+
 ## D-052 A presentation is always scored by the committee (2026-10-01)
 criteria_extraction_v8 dropped the stage and scorer definitions, so a presentation
 criterion came back as TECHNICAL, scored by the AI. v9 states them again. Storing a

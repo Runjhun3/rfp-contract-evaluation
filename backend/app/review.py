@@ -78,14 +78,31 @@ def decide(cur, score_id: str, body: dict, user_id: str) -> str | None:
     return None
 
 
-def save_committee_marks(cur, tender_id: str, sent: dict, user_id: str) -> str | None:
+def save_committee_marks(cur, tender_id: str, sent: dict, reason: str,
+                         user_id: str) -> str | None:
     """Marks the committee enters for committee-scored criteria (e.g. a presentation):
-    {criterion_id: {submission_id: marks}}. A blank entry is skipped; any other bad
-    value rejects the whole save. Returns an error message, or None."""
+    {criterion_id: {submission_id: marks}}. A blank entry is skipped and an unchanged
+    mark is not saved again; changing a saved mark needs a reason (it goes on the
+    record). Any bad value rejects the whole save. Returns an error message, or None."""
     tree = q_projects.criteria(cur, tender_id)
     ways = scoring(tree)
     committee = {c["criterion_id"]: c for c in tree if ways.get(c["code"]) == "COMMITTEE"}
     known = {a["submission_id"] for a in q_results.latest_attempts(cur, tender_id)}
+    parsed = _parse_marks(sent, committee, known)
+    if isinstance(parsed, str):
+        return parsed
+    saved = q_results.manual_marks(cur, list(committee))
+    new = [(s, c, m) for s, c, m in parsed if saved.get(c, {}).get(s) != m]
+    reason = (reason or "").strip()
+    if any(saved.get(c, {}).get(s) is not None for s, c, _ in new) and len(reason) < MIN_REASON:
+        return f"Give a reason of at least {MIN_REASON} characters for changing saved marks."
+    for submission_id, criterion_id, marks in new:
+        q_results.save_manual_mark(cur, submission_id, criterion_id, marks, reason, user_id)
+    return None
+
+
+def _parse_marks(sent: dict, committee: dict, known: set) -> list[tuple] | str:
+    """(submission_id, criterion_id, marks) for each mark typed, or why one is wrong."""
     parsed = []
     for criterion_id, by_bidder in (sent or {}).items():
         criterion = committee.get(str(criterion_id))
@@ -103,6 +120,4 @@ def save_committee_marks(cur, tender_id: str, sent: dict, user_id: str) -> str |
                 return (f"{criterion['code']} marks must be numbers from 0 to "
                         f"{criterion['max_marks']}.")
             parsed.append((str(submission_id), criterion["criterion_id"], marks))
-    for submission_id, criterion_id, marks in parsed:
-        q_results.save_manual_mark(cur, submission_id, criterion_id, marks, user_id)
-    return None
+    return parsed

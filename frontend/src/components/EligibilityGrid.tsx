@@ -49,7 +49,7 @@ export default function EligibilityGrid({ requirements, firms }: Props) {
                   <Cell cell={c} firm={f.name} />
                 </td>
               ))}
-              <td className="col-status">
+              <td className="col-status" title={f.job_note ?? undefined}>
                 <span className={CHIP[f.status]}>{f.label}</span>
                 {f.checking && f.status !== "checking" && <><br /><span className="small muted">Checking again…</span></>}
                 {f.error && <><br /><span className="small muted">{f.error}</span></>}

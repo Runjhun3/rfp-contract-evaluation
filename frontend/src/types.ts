@@ -69,6 +69,7 @@ export interface EligibilityFirm {
   status: FirmStatus; label: string; open: number; error: string | null;
   checking: boolean; // being checked again: the last results stay shown until replaced
   included: boolean; // ticked on the participants page; unticked firms keep results, are not evaluated
+  job_note: string | null; // when its latest check was started, by whom and why
 }
 export interface EligibilityPage extends Head {
   requirements: Requirement[]; firms: EligibilityFirm[]; open: number; qualified: number; checking: number;
@@ -93,6 +94,7 @@ export interface ResultRow {
   eligibility: FirmStatus | null; // not_qualified: never evaluated; status says which requirement failed
   // manual: marks the committee entered, by committee-scored criterion id (null = not yet).
   cells: Record<string, Cell>; docs: Marks | null; manual: Record<string, Marks | null>; total: Marks | null;
+  manual_notes: Record<string, string>; // by criterion id: who entered the mark, what it replaced
 }
 export interface ResultsPage extends Head {
   codes: { code: string; max_marks: Marks | null }[]; rows: ResultRow[];

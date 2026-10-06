@@ -7,6 +7,7 @@ running, because the worker would go on writing to it.
 A firm is removed from the shared firm list only while no project holds its bid or
 results. Rows of projects it was merely ticked in, with nothing uploaded, go with it.
 """
+from app import participants
 from app.db import q_bids, q_projects
 
 
@@ -20,7 +21,7 @@ def delete_project(cur, tender_id: str, user_id: str) -> str | None:
     return None
 
 
-def delete_firm(cur, bidder_id: str) -> str | None:
+def delete_firm(cur, bidder_id: str, user_id: str) -> str | None:
     """None when the firm is deleted, else why it is not."""
     firm = q_bids.bidder(cur, bidder_id)
     if firm is None:
@@ -29,5 +30,6 @@ def delete_firm(cur, bidder_id: str) -> str | None:
         projects = "1 project" if firm["bids"] == 1 else f"{firm['bids']} projects"
         return (f"{firm['short_name']} has a bid or results in {projects}, so it stays on "
                 "record. Untick it to leave it out of this project.")
+    participants.firm_deleted(cur, firm, user_id)
     q_bids.delete_bidder(cur, bidder_id)
     return None

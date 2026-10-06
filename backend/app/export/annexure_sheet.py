@@ -4,8 +4,8 @@ Summary: one row per criterion in the RFP's order (group headings with the sum o
 their sub-criteria; committee-scored criteria such as a presentation with the
 committee's marks), one column per participant in rank order, then the totals and
 rank. After it, one sheet per participant in rank order (firm_sheet.py) with its
-marks, items and full decision log. Built only from the project's data; no RFP is
-named in code.
+marks, items and full decision log; last, the audit log (audit_sheet.py). Built only
+from the project's data; no RFP is named in code.
 """
 import io
 import re
@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from openpyxl import Workbook
 
 from app.config import TIMEZONE
+from app.export.audit_sheet import audit_sheet
 from app.export.firm_sheet import firm_sheet
 from app.export.sheet_data import criterion_marks, eligibility_word
 from app.export.sheet_style import BOLD, TITLE, bold_row, style
@@ -28,6 +29,7 @@ def build_workbook(data: dict) -> bytes:
     _summary(book.active, data)
     for firm in data["firms"]:
         firm_sheet(book, firm, data)
+    audit_sheet(book, data)
     out = io.BytesIO()
     book.save(out)
     return out.getvalue()

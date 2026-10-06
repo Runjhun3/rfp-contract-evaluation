@@ -49,7 +49,7 @@ export default function ResultsTable({ data, entered, onEnter }: Props) {
               const key = `${c.criterion_id}/${r.submission_id}`;
               if (r.eligibility === "not_qualified") return <td key={c.criterion_id} className="right muted">—</td>;
               return (
-                <td key={c.criterion_id} className="right">
+                <td key={c.criterion_id} className="right" title={r.manual_notes?.[c.criterion_id]}>
                   <label className="sr-only" htmlFor={`m${i}-${j}`}>{c.code} marks for {r.name}</label>
                   <input id={`m${i}-${j}`} className="narrow" type="text" inputMode="decimal"
                     value={entered[key] ?? ""} onChange={(e) => onEnter({ ...entered, [key]: e.target.value })} />

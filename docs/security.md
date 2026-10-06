@@ -49,6 +49,8 @@ One account from `.env` (`APP_USERNAME` / `APP_PASSWORD`; decisions.md D-042).
 Every API call except `/api/v1/session` and `/api/v1/login` needs a signed-in
 session (401 otherwise). The password lives only in `.env` / the ENV_FILE
 secret, never in `.env.example`, git or chat; change it by editing `.env` and
-restarting. Everyone shares the account and actions are recorded as "Local
-user", so there is no per-person audit yet. Keep the security group limited to
+restarting. Actions are recorded against the account's own `app_user` row
+(created on first sign-in, named by its username; D-053), so the audit trail
+names the account. Everyone shares it, so there is no per-person audit until
+named accounts exist. Keep the security group limited to
 the committee's IPs until there is TLS and named accounts.

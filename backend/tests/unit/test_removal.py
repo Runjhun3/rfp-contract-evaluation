@@ -30,11 +30,17 @@ def test_a_missing_or_already_deleted_project_is_not_found(monkeypatch, deleted)
 
 def test_a_firm_is_deleted_only_when_no_project_holds_its_bid_or_results(monkeypatch,
                                                                            deleted):
-    firm = {"bidder_id": "b", "short_name": "Firm A", "bids": 2}
+    firm = {"bidder_id": "b", "short_name": "Firm A", "legal_name": "Firm A Pvt Ltd", "bids": 2}
+    events = []
     monkeypatch.setattr(removal.q_bids, "bidder", lambda cur, b: firm)
-    assert "bid or results in 2 projects" in removal.delete_firm(None, "b")
+    monkeypatch.setattr(removal.participants.q_bids, "firm_projects", lambda cur, b: ["t1"])
+    monkeypatch.setattr(removal.participants.q_events, "add",
+                        lambda cur, t, u, action, target, details: events.append((t, action)))
+    assert "bid or results in 2 projects" in removal.delete_firm(None, "b", "u")
     firm["bids"] = 0                                      # only ticked, nothing uploaded
-    assert removal.delete_firm(None, "b") is None
+    assert removal.delete_firm(None, "b", "u") is None
     assert deleted == ["b"]
+    # Recorded first: its removal from the project it was ticked in, then the deletion.
+    assert events == [("t1", "Participant removed"), (None, "Firm deleted")]
     monkeypatch.setattr(removal.q_bids, "bidder", lambda cur, b: None)
-    assert removal.delete_firm(None, "b") == "Firm not found"
+    assert removal.delete_firm(None, "b", "u") == "Firm not found"

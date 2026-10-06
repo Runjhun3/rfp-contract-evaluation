@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from app import eligibility
 from app.criteria import scoring
-from app.db import q_projects, q_results
+from app.db import q_audit, q_projects, q_results
 
 STATUS = {"DONE": None, "FAILED": "Evaluation failed", "NOT_STARTED": "Not evaluated yet"}
 EVALUATING = "Being evaluated"
@@ -32,8 +32,9 @@ def project_results(cur, tender_id: str) -> dict:
         return {c["criterion_id"]: entered.get(c["criterion_id"], {}).get(submission_id)
                 for c in committee}
 
-    rows = _ranked([_row(p, cells.get(p["submission_id"], {}), manual(p["submission_id"]))
-                    for p in latest])
+    notes = mark_notes(q_audit.mark_history(cur, tender_id))
+    rows = _ranked([_row(p, cells.get(p["submission_id"], {}), manual(p["submission_id"]),
+                         notes.get(p["submission_id"], {})) for p in latest])
     screening = eligibility.overview(cur, tender_id)
     _add_eligibility(rows, {f["submission_id"]: f for f in screening["firms"]})
     # Every mark needs the committee's approval, flagged or not.
@@ -101,7 +102,8 @@ def export_blockers(rows: list[dict], open_reviews: int, codes: list[dict],
     return blockers
 
 
-def _row(attempt: dict, cells: dict, manual: dict) -> dict:
+def _row(attempt: dict, cells: dict, manual: dict, notes: dict | None = None) -> dict:
+    """notes: who entered each committee mark (mark_notes), by criterion id."""
     done = attempt["stage"] == "DONE"
     docs = sum((c["marks"] for c in cells.values()), Decimal(0)) if done else None
     extra = sum((m for m in manual.values() if m is not None), Decimal(0))
@@ -109,8 +111,25 @@ def _row(attempt: dict, cells: dict, manual: dict) -> dict:
             "legal_name": attempt["legal_name"],
             "included": attempt["included"],
             "stage": attempt["stage"], "status": STATUS.get(attempt["stage"], EVALUATING),
-            "cells": cells if done else {}, "docs": docs, "manual": manual, "rank": None,
+            "cells": cells if done else {}, "docs": docs, "manual": manual,
+            "manual_notes": notes or {}, "rank": None,
             "total": docs + extra if done else None}
+
+
+def mark_notes(history: list[dict]) -> dict[str, dict[str, str]]:
+    """Who entered each committee mark, and from what it was changed and why:
+    {submission_id: {criterion_id: note}}. history: oldest first."""
+    entries: dict[tuple, list[dict]] = {}
+    for h in history:
+        entries.setdefault((h["submission_id"], h["criterion_id"]), []).append(h)
+    notes: dict[str, dict[str, str]] = {}
+    for (submission_id, criterion_id), marks in entries.items():
+        last = marks[-1]
+        said = f"by {last['full_name']}, {last['stamp']}"
+        notes.setdefault(submission_id, {})[criterion_id] = (
+            f"Changed from {marks[-2]['marks']} to {last['marks']} {said}: {last['reason']}"
+            if len(marks) > 1 else f"Entered {said}")
+    return notes
 
 
 def _ranked(rows: list[dict]) -> list[dict]:

@@ -1,12 +1,11 @@
 """API: the criteria read from the RFP, their rule text, and approval."""
 from starlette.routing import Route
 
-from app import eligibility_actions
+from app import criteria_edits, eligibility_actions
 from app.criteria import missing_max_marks, review_view
-from app.db import q_projects
+from app.db import q_projects, q_prompts
 from app.db.connection import transaction
-from app.db.repo_setup import LOCAL_USER_ID
-from app.web.auth import check_csrf
+from app.web.auth import check_csrf, current_user
 from app.web.common import fail, ok
 from app.web.routes_projects import project_head
 
@@ -42,11 +41,15 @@ async def save_criteria(request):
     tender_id = str(request.path_params["tender_id"])
     body = await request.json()
     sent = {str(c.get("criterion_id")): c for c in body.get("criteria", [])}
+    user_id = current_user(request)
     with _db(request) as cur:
-        for current in q_projects.criteria(cur, tender_id):
+        before = q_projects.criteria(cur, tender_id)
+        for current in before:
             cid = current["criterion_id"]
             q_projects.update_criterion(cur, cid, _fields(sent.get(cid, {}), current))
-        q_projects.save_draft_block(cur, tender_id, str(body.get("block") or ""))
+        criteria_edits.record(cur, tender_id, before, q_projects.criteria(cur, tender_id),
+                              "COMMITTEE", user_id)
+        q_prompts.save_draft_block(cur, tender_id, str(body.get("block") or ""), user_id)
     return ok(None, "Criteria saved")
 
 
@@ -54,11 +57,14 @@ async def approve_criteria(request):
     check_csrf(request)
     tender_id = str(request.path_params["tender_id"])
     with _db(request) as cur:
-        problem = missing_max_marks(q_projects.criteria(cur, tender_id))
+        rows = q_projects.criteria(cur, tender_id)
+        problem = missing_max_marks(rows)
         if problem:
             return fail(problem, 409)
-        q_projects.approve_prompt(cur, tender_id, LOCAL_USER_ID)
-        eligibility_actions.queue_checks(cur, tender_id)       # bids uploaded before approval
+        user_id = current_user(request)
+        q_prompts.approve_prompt(cur, tender_id, user_id, criteria_edits.snapshot(rows))
+        # Bids uploaded before approval are checked now.
+        eligibility_actions.queue_checks(cur, tender_id, (user_id, "Criteria approved"))
     return ok(None, "Criteria approved")
 
 

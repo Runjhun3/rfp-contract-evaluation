@@ -45,8 +45,9 @@ def test_decisions_are_per_item_when_the_criterion_has_items(recorded):
     assert recorded == []
 
 
-def test_committee_marks_are_saved_only_for_committee_scored_criteria(monkeypatch):
-    saved = []
+@pytest.fixture
+def marks_saved(monkeypatch):
+    saved, current = [], {}
     tree = [{"criterion_id": "c", "code": "C", "stage": "TECHNICAL", "scored_by": "COMMITTEE",
              "kind": None, "max_marks": D(35), "parent_code": None},
             {"criterion_id": "a", "code": "A.1", "stage": "TECHNICAL", "scored_by": "LLM",
@@ -54,14 +55,34 @@ def test_committee_marks_are_saved_only_for_committee_scored_criteria(monkeypatc
     monkeypatch.setattr(review.q_projects, "criteria", lambda cur, t: tree)
     monkeypatch.setattr(review.q_results, "latest_attempts",
                         lambda cur, t: [{"submission_id": "s1"}, {"submission_id": "s2"}])
-    monkeypatch.setattr(review.q_results, "save_manual_mark",
-                        lambda cur, s, c, m, u: saved.append((s, c, m)))
-    assert review.save_committee_marks(None, "t", {"c": {"s1": "32", "s2": " "}}, "u") is None
-    assert saved == [("s1", "c", D(32))]                   # blank entries are skipped
-    assert review.save_committee_marks(None, "t", {"c": {"s1": "36"}}, "u") \
-        == "C marks must be numbers from 0 to 35."
-    assert review.save_committee_marks(None, "t", {"a": {"s1": "5"}}, "u").startswith("Those marks")
-    assert saved == [("s1", "c", D(32))]
+    monkeypatch.setattr(review.q_results, "manual_marks", lambda cur, ids: {"c": dict(current)})
+
+    def save(cur, s, c, m, reason, u):
+        saved.append((s, c, m, reason))
+        current[s] = m
+    monkeypatch.setattr(review.q_results, "save_manual_mark", save)
+    return saved
+
+
+def test_committee_marks_are_saved_only_for_committee_scored_criteria(marks_saved):
+    assert review.save_committee_marks(None, "t", {"c": {"s1": "32", "s2": " "}}, "", "u") is None
+    assert marks_saved == [("s1", "c", D(32), "")]         # blank entries are skipped
+    too_high = review.save_committee_marks(None, "t", {"c": {"s1": "36"}}, "", "u")
+    assert too_high == "C marks must be numbers from 0 to 35."
+    not_committee = review.save_committee_marks(None, "t", {"a": {"s1": "5"}}, "", "u")
+    assert not_committee.startswith("Those marks")
+    assert len(marks_saved) == 1
+
+
+def test_changing_a_saved_committee_mark_needs_a_reason_and_is_kept(marks_saved):
+    assert review.save_committee_marks(None, "t", {"c": {"s1": "32"}}, "", "u") is None
+    assert review.save_committee_marks(None, "t", {"c": {"s1": "32.00"}}, "", "u") is None
+    assert len(marks_saved) == 1                          # unchanged: not saved again
+    assert review.save_committee_marks(None, "t", {"c": {"s1": "30"}}, "typo", "u") == (
+        "Give a reason of at least 10 characters for changing saved marks.")
+    why = "Second panel member's sheet added"
+    assert review.save_committee_marks(None, "t", {"c": {"s1": "30"}}, why, "u") is None
+    assert marks_saved[-1] == ("s1", "c", D(30), why)
 
 
 def test_an_item_override_is_up_to_the_most_one_item_can_earn(recorded):

@@ -4,10 +4,10 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from app import files
+from app import criteria_edits, files
 from app.config import Settings
 from app.criteria import SCREENED
-from app.db import q_projects, q_runs
+from app.db import q_audit, q_projects, q_prompts, q_runs
 from app.db.connection import one_row, transaction
 from app.db.save_run import save_output
 from app.ingest.extract_criteria import build_block, decimal_or_none, extract
@@ -15,25 +15,34 @@ from app.ingest.ocr import ocr_pages
 from app.ingest.read_pages import read_pages
 from app.jobs import tender_rules
 from app.llm.client import LlmClient
+from app.llm.prompts import versions
 from app.pipeline import run as run_pipeline
 from app.schemas.records import CountBand, RunContext
 
 
 def extract_criteria(settings: Settings, llm: LlmClient, job: dict) -> None:
+    """Read the RFP's criteria. The AI's answer is kept as it came (criteria_extraction),
+    and every change it makes to an existing row is recorded as an edit by the AI."""
     with transaction(settings) as cur:
         doc = one_row(cur, "select tender_id::text, s3_key from tender_document where doc_id = %s",
                       (job["ref_id"],))
     pdf = files.local_path(settings, doc["s3_key"])
     pages = ocr_pages(pdf, read_pages(pdf), settings, f"rfp-{job['ref_id']}")
     found = extract(pages, llm)
+    tender_id = doc["tender_id"]
     with transaction(settings) as cur:
+        before = q_projects.criteria(cur, tender_id)
+        q_audit.save_extraction(cur, tender_id, str(job["ref_id"]),
+                                (versions()["criteria"], settings.claude_model),
+                                found.model_dump(mode="json"))
         for c in found.criteria:
-            _upsert_criterion(cur, doc["tender_id"], c)
-        q_projects.drop_stale_criteria(cur, doc["tender_id"], [c.code for c in found.criteria])
-        q_projects.save_draft_block(cur, doc["tender_id"],
-                                    build_block(q_projects.criteria(cur, doc["tender_id"]),
-                                                found.general_conditions))
-        q_projects.set_status(cur, doc["tender_id"], "CRITERIA_READY")
+            _upsert_criterion(cur, tender_id, c)
+        q_projects.drop_stale_criteria(cur, tender_id, [c.code for c in found.criteria])
+        after = q_projects.criteria(cur, tender_id)
+        criteria_edits.record(cur, tender_id, before, after, "EXTRACTION", None)
+        q_prompts.save_draft_block(cur, tender_id, build_block(after, found.general_conditions),
+                                   None)
+        q_projects.set_status(cur, tender_id, "CRITERIA_READY")
 
 
 def _upsert_criterion(cur, tender_id: str, c) -> None:

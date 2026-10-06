@@ -41,12 +41,18 @@ def manual_marks(cur, criterion_ids: list[str]) -> dict[str, dict[str, object]]:
     return out
 
 
-def save_manual_mark(cur, submission_id: str, criterion_id: str, marks, user_id: str) -> None:
+def save_manual_mark(cur, submission_id: str, criterion_id: str, marks, reason: str,
+                     user_id: str) -> None:
+    """The current mark (manual_score), and the entry in its history (append-only)."""
     cur.execute("""insert into manual_score (submission_id, criterion_id, marks, entered_by)
                    values (%s, %s, %s, %s)
                    on conflict (submission_id, criterion_id) do update
                      set marks = excluded.marks, entered_by = excluded.entered_by,
                          entered_at = now()""", (submission_id, criterion_id, marks, user_id))
+    cur.execute("""insert into manual_score_history (submission_id, criterion_id, marks, reason,
+                     entered_by)
+                   values (%s, %s, %s, %s, %s)""",
+                (submission_id, criterion_id, marks, reason, user_id))
 
 
 def score_detail(cur, score_id: str) -> dict | None:

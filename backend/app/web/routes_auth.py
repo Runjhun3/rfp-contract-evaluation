@@ -4,6 +4,8 @@ import secrets
 
 from starlette.routing import Route
 
+from app.db import q_users
+from app.db.connection import transaction
 from app.web.auth import check_csrf, credentials_ok, csrf_token
 from app.web.common import fail, ok
 
@@ -26,8 +28,10 @@ async def login(request):
     if not credentials_ok(username, password, settings.app_username, settings.app_password):
         await asyncio.sleep(1)          # slows password guessing
         return fail(WRONG, 401)
+    with transaction(settings) as cur:
+        user_id = q_users.account(cur, username)
     request.session.clear()             # new session on sign-in: no fixation
-    request.session.update(user=username, csrf=secrets.token_urlsafe(24))
+    request.session.update(user=username, user_id=user_id, csrf=secrets.token_urlsafe(24))
     return ok({"csrf": request.session["csrf"], "user": username}, "Signed in")
 
 

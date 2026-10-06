@@ -4,12 +4,11 @@ from starlette.responses import Response
 from starlette.routing import Route
 
 from app.db.connection import transaction
-from app.db.repo_setup import LOCAL_USER_ID
 from app.export.annexure_sheet import build_workbook, file_name
 from app.export.sheet_data import sheet_data
 from app.results import project_results
 from app.review import save_committee_marks as save_marks
-from app.web.auth import check_csrf
+from app.web.auth import check_csrf, current_user
 from app.web.common import fail, ok
 from app.web.routes_projects import project_head
 
@@ -32,7 +31,7 @@ async def save_committee_marks(request):
     body = await request.json()
     with _db(request) as cur:
         problem = save_marks(cur, str(request.path_params["tender_id"]), body.get("marks"),
-                             LOCAL_USER_ID)
+                             str(body.get("reason") or ""), current_user(request))
     return fail(problem) if problem else ok(None, "Committee marks saved")
 
 
