@@ -3,6 +3,207 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-066 Yes/no tests are recomputed; tests against words are the AI's judgement (2026-10-07)
+The AI often lists `is_completed = true` (and, for a CV, e.g. a degree) among the tests
+it applied. Python compared only numbers and dates, so each showed "Could not be
+recomputed from the facts; please check it": on one sample bid's evaluation, 10 items
+carried it, while the fact itself is quote-verified on its own row.
+- A yes/no test is recomputed: the fact's true/false (or yes/no) against the
+  threshold's. It passes, or is a problem when the AI's test contradicts its own fact.
+- A test against words (a threshold with no digit) is never compared letter by letter
+  ("M.Arch" vs "Post Graduate in Architecture" is a judgement of meaning): it is
+  recorded as the AI's judgement (`judged:`), shown with what the document says, folded
+  with the passed checks when met. A failed one still backs a rejection, as before.
+- No prompt change. Results saved before this keep their old note until evaluated again.
+
+## D-065 Only the cited pages are analysed for the document checks (2026-10-07)
+The document checker analysed every scanned page of a bid (stamps, signatures, a
+thumbnail) before any check could start: on a 981-page bid of 970 scans, eligibility
+waited well over 15 minutes of CPU for it, although the checks only ever look at the
+pages their answers cite, against D-059's rule that only the documents the criteria ask
+for are checked.
+- A job asks the AI first; the checker is then opened on every page its answers cite
+  (an eligibility job: the pages each answer quotes; an evaluation: the items' cited
+  pages), analyses only those, and runs each check's document checks before anything is
+  saved, so every verdict still includes them.
+- Each page is analysed once per bid file and kept (`index-v2.pkl`, grown as later jobs
+  cite more pages); a job compares only its own evidence pages, so its findings never
+  depend on what another job analysed. The bidder's own repeated images are still
+  found from the whole file (it reads only small images).
+- A stamp or signature copied from a page no check cites is no longer caught as reused;
+  within the documents being evaluated it still is.
+
+## D-064 Each labelling batch sees the pages before it (2026-10-07)
+Pages are labelled in batches of 20, and the first page of a batch was labelled blind.
+On two sample bids that was the only place a project boundary went wrong: a new
+project's header that opened a batch was not marked as a start, so two projects became
+one item (and a criterion scored by the number of items could lose marks); the second
+page of a completion certificate that opened a batch was called a project header.
+Making every project-header page a start was rejected: across the sample bids 81 of 83
+header pages without a start were pages 2-4 of one project, so it would split them.
+- Each batch is shown the last 3 pages of the batch before, with the labels they were
+  given, as context only; their labels are never taken again (`page_label_v5.md`).
+- About 15% more input per label call. The label prompt version is part of eligibility
+  screening's label folder, so a new prompt labels a bid afresh.
+Checked on the two batches: the header now starts its own item and the certificate page
+is a certificate; no other item boundary in them moved.
+
+## D-063 Every document check shown with its check; forensic findings as notes (2026-10-07)
+Supersedes D-058's hiding of forensic findings and its stamp-text check. The committee
+saw only identifier problems: valid identifiers, forensic findings and what could not
+be checked were invisible, so "nothing found" read the same as "never checked".
+- Every row is shown with its check: each identifier (valid, a problem, or for its issuer
+  to confirm), each forensic finding, and a last row naming what was checked and what
+  could not be and why (OCR'd before word positions were kept, scanned below 90 or 150
+  dpi; `forensics/coverage.py`).
+- Until calibrated (`FORENSIC_FLAGS=false`), a forensic finding is a note to look at:
+  it never makes a check the committee's to decide nor adds a review reason. Switched
+  on, it is a problem, as before.
+- A finding's box (`region`) is kept with the check (evidence_check.region, migration
+  018; in an eligibility check's verification) and outlined on the bid page when its
+  row is opened.
+- The stamp-text check goes: on a genuine bid all its findings were genuine seals of
+  issuers, auditors and the bidder, whose words naturally appear nowhere else on the
+  page. With it go the bidder's names given to the checker.
+
+## D-062 Document checks only on a verdict's own documents, shown only with it (2026-10-07)
+Supersedes the Document checks page and per-finding review of D-057 and D-058, and the
+eligibility evidence of D-059. The page listed findings on documents the criteria do not
+ask about: an eligibility check was checked on every page tagged for it (202 pages for a
+past-experience requirement on a sample bid, the bidder's own proposal write-ups among
+them, giving 25 of its findings), and the page showed findings apart from the checks
+whose verdicts already included them.
+- An eligibility check's documents are the pages its answer quotes its facts from (as an
+  item's are its cited pages); an answer quoting nothing gets no document check.
+- Problems are rows of the check's own verification, shown with it: an eligibility check
+  is the committee's to decide, an item goes to review (DOCUMENT_ID / DOCUMENT_FLAG). An
+  identifier's note says where to confirm it (the issuer's portal); the app looks
+  nothing up. What the committee found is the reason for its decision on the check.
+- The export shows each problem on its check's row ("Document check: ..."); the audit
+  log keeps the committee's decisions on checks and marks.
+- Gone: the Document checks page and its API, the per-finding outcomes, crops shown to
+  the committee, and the document_flag tables (migrations 018 and 019, never merged).
+  Forensic findings are worked out only when FORENSIC_FLAGS is on; calibration makes its
+  own crops for its report.
+
+## D-061 Word positions measured per run of words, printed and legible only (2026-10-07)
+Supersedes D-060's limits for scans. At 90 dpi, calibration on a genuine bid gave 113
+word-position flags on 53 pages, none real: table cells centred at other heights read
+as one line, handwritten dates beside signatures, words OCR barely read, and ordinary
+wobble on printouts just over the limits.
+- A line is split at any gap wider than 2 word heights; each run (a cell, a column) is
+  measured on its own. A figure alone in a table cell is no longer compared.
+- Handwritten words (Textract's TextType, kept on each word; unknown for Tesseract and
+  for OCR cached before this) and words below 0.7 OCR confidence are left out.
+- Scans get looser limits than text layers: baseline 0.5, height 1.6, tilt 2.5°.
+- A figure's baseline follows the slant of its run (fitted through all its words, so
+  a few at one end cannot tilt it), not the flat average of its bottoms: on a slightly
+  rotated scan the whole line slants, and words at either end of a long line looked
+  off it.
+Calibrated again on the same bid (OCR cached before handwriting was kept): 6 word-position
+flags on 5 pages, from 114. Forensic flags stay hidden.
+
+## D-060 Word positions on a scan are checked from 90 dpi (2026-10-07)
+Supersedes D-058's single 150 dpi floor for scans. Bids are scans of printouts that the
+bidders cannot be asked to rescan; on a sample bid every evidence scan was 63-142 dpi
+(median 96), so no scanned word position was ever measured. At about 96 dpi a line of
+text is 10-12 pixels tall: a figure several pixels off its line or of another height is
+still measurable, while grain and re-compression are not.
+- Word positions on a scan (`geometry.py`) run from `MIN_POSITION_DPI` (90).
+- Pixel checks (`pixels.py`) and LOW_RESOLUTION keep `MIN_EVIDENCE_DPI` (150).
+Forensic flags stay hidden until `run.py calibrate-forensics` on genuine bids shows the
+false alarms at this floor are rare; the floor is raised again if they are not.
+
+## D-059 Document checks run inside each criterion check, on its required documents (2026-10-07)
+Supersedes the trigger and scope of D-057 and D-058. Calibrating on a genuine bid gave
+145 flags on 88 of 416 pages, nearly all on the bidder's own designed pages and mock-ups,
+and a verdict reached before the documents were checked would have to change after.
+- What is checked: only the documents the criteria ask for, as the checks already find
+  them. For an eligibility requirement, the pages given to its check as proof; for an
+  evaluated item, the pages cited as the RFP's proof and those its facts are quoted
+  from. No list of document types: the criteria decide.
+- When: with the check itself. The eligibility job and the evaluation open the bid's
+  document checker (`forensics/checker.py`) on pages they already read and OCR'd; it
+  never OCRs and never calls the AI. Its bid-wide reference (marks, scan thumbnails,
+  the bidder's own repeated images) is built once per file from those pages.
+- Verdict: an identifier failing a check needing no issuer (and, once calibrated, a
+  forensic finding) is part of the check's own verification. An eligibility check
+  whose proof is flagged is for the committee from the start (like an unsure answer),
+  and deciding it needs a reason; an item gets the review reason DOCUMENT_ID or
+  DOCUMENT_FLAG. The separate CHECK_DOCUMENTS job and "Check documents again" go.
+- Fixes found by calibration: only words inside a scan count (not the bidder's caption
+  above it); the issuer's letterhead and margins are read within each scan; a near copy
+  needs a changed date or amount that is not OCR noise (a digit changed to another digit
+  always counts); a stamp naming the bidder, like its repeated images, or a notary's is
+  not flagged; a paragraph is not a stamp; a missing page is a gap inside a document's
+  numbered pages, not its unnumbered first page; copied patches need the text's place.
+On the same two bids, from their existing evaluation runs: 14 flags on 12 of 192
+evidence pages and 1 on 1 of 162, without OCR word boxes (those runs predate them).
+
+## D-058 Forensic document checks within each bid, hidden until calibrated (2026-10-07)
+On top of D-057's basic checks, four forensic checks, in their own job,
+CHECK_DOCUMENTS, queued on bid upload (or "Check documents again"). Every check works
+within the one bid only (bids carry different kinds of documents); every finding is a
+flag with a crop of its region, never a verdict.
+- Groundwork: a bid file is read and OCR'd once for every job (`runs/files/<file_id>`);
+  OCR keeps each word's box and confidence (Textract and Tesseract); text layers give
+  each word's font, size and letter spacing (`forensics/words.py`); scans are read as
+  stored in the PDF, not re-rendered (`forensics/images.py`).
+- Word positions (`geometry.py`): a figure off its line's baseline, of another height,
+  overlapping a word, on a tilted line, or on a text layer in another font, a slightly
+  different size or unevenly spaced. Headers, footers, page numbers and designed
+  callouts are left out.
+- Stamps and signatures (`marks.py`, `stamps.py`): round stamps and signatures in
+  coloured ink, round seals on greyscale scans; the same mark image on two pages (a
+  real stamp never prints exactly alike), and a stamp whose words are not on the rest
+  of its page. Left out: the bidder's own seal and signature (like an image it repeats
+  on its pages), a scan shown twice (one certificate under two criteria: on the sample
+  bids 106 of 109 first flags were this), highlight frames, letterhead logos and
+  coloured print.
+- Layout (`layout.py`): a letter reused with other figures (near copy), printed page
+  numbers that jump (missing pages), a page unlike the others under its letterhead.
+- Pixels (`pixels.py`): a figure that re-compresses (JPEG) or has grain unlike its
+  line, and a copied patch outside the text.
+Word positions and pixels on a scan run only at 150 dpi and above; most scans in the
+sample bids are below, so those checks rarely run there: they are left out, not guessed.
+The committee marks each flag "Looks fine", "Needs follow-up" or "Confirmed problem"
+(append-only). Flags stay hidden (`FORENSIC_FLAGS=false`) until `run.py
+calibrate-forensics` on genuine bids shows false alarms are rare.
+Fixed on the way: local Tesseract ran PDFium from four threads (not thread-safe) and
+decoded its UTF-8 output as the Windows code page.
+
+## D-057 Basic document checks, within each bid, as flags for the committee (2026-10-07)
+Bids arrive as merged PDFs of phone photos and scans; the originals and their digital
+signatures cannot be asked for. So the system cannot prove a document genuine; it can
+find what is worth confirming with the issuer. Every check works within one bid,
+never across bids (bids carry different kinds of documents), and only raises a flag:
+- Identifiers (`evaluate/identifiers.py`): UDIN (its membership number and year must
+  match the page), CA certificates without a UDIN, GSTIN (check digit), CIN, LLPIN, an
+  organisation's PAN (a person's PAN is never listed), bank guarantee numbers. Read
+  in the jobs that already OCR the bid; shown on the firm's "Document checks" page,
+  where the committee records what the issuer said (append-only `document_flag_review`).
+- In each item (`evaluate/document_checks.py`, item_eval_v5): dates out of order, a
+  stated total or average that does not add up, the firm's claim differing from its
+  document (both quotes verified), a referred document missing from the item, and
+  evidence from a scan under 150 dpi. Eligibility checks get the total and resolution
+  checks (eligibility_check_v2). They appear as review reasons on the evidence page.
+Stamp, signature, word-position, pixel and layout checks follow, off until calibrated.
+
+## D-056 The rule text follows the criteria unless the committee wrote its own (2026-10-06)
+The rule text was drafted once, at extraction; "Save changes" stored criteria edits and
+the rule text box apart, so the evaluator kept the old marks, limits and wording.
+Now (`app/rule_text.py`), when a saved edit changes what the criteria would draft
+(marks, limits, meaning, allowed marks, scored per, AI or committee), the rule text is
+redrafted with `build_block`, exactly as an extraction drafts it, and saved as the
+draft (a new version to approve after an approval). Edits that do not reach the rule
+text (eligibility rows, leaving one out) change nothing. The committee's own text wins
+(option a): if it typed in the box in the same save, or the saved text differs from
+what the unchanged criteria give, it is kept and a notice says so. "Rebuild from the
+criteria" fills the box from the saved criteria for review; nothing is saved until
+"Save changes". The RFP's general conditions come from the latest extraction (kept
+since 016); for older projects they are read back from the saved rule text, which is
+safe because an update needs that text to redraft exactly.
+
 ## D-055 The audit trail is shown in the export only (2026-10-06)
 Supersedes the "Change history" cards of D-053 and D-054 on the Criteria and
 Participants pages: they are removed, so those pages show only the work. Everything

@@ -7,7 +7,8 @@ type Props = { firm: EligibilityFirm; titles: Record<string, string>; selected: 
 // A firm's screening checks, grouped as eligibility criteria,
 // one line each, like the items of a score on the evidence page: the badge is the
 // committee's decision once made, else the AI's finding, green ✓ / red ✗; a dotted
-// underline marks a committee decision, and only an undecided AI-unsure ? is highlighted.
+// underline marks a committee decision. Only an undecided ? is highlighted: the AI was
+// unsure, or the proof failed a document check.
 export default function CheckList({ firm, titles, selected }: Props) {
   return (
     <section className="list" aria-label="Checks">
@@ -26,10 +27,11 @@ export default function CheckList({ firm, titles, selected }: Props) {
                 );
               }
               const decided = c.decision !== null;
-              const shown = c.decision ?? c.result;
-              const pending = !decided && c.result === "UNSURE";
+              const shown = c.decision ?? c.effective ?? c.result;
+              const pending = !decided && shown === "UNSURE";
               const said = `${word(c.stage, shown)}${decided ? ", decided by the committee"
-                : pending ? ", committee decision needed" : ", AI finding"}`;
+                : pending ? (c.flagged ? ", a document check flagged its proof"
+                  : ", committee decision needed") : ", AI finding"}`;
               return (
                 <Link key={c.code} to={`/eligibility/${c.check_id}`} title={name}
                   className={`item${c.check_id === selected ? " selected" : ""}`}>

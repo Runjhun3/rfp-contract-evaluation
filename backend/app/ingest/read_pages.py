@@ -29,7 +29,21 @@ def needs_ocr(page: Page, settings: Settings) -> bool:
 
 def _read_page(page: pdfium.PdfPage, number: int) -> Page:
     text = page.get_textpage().get_text_bounded().replace("\r\n", "\n")
-    return Page(pdf_page_no=number, text=text, image_ratio=_image_ratio(page))
+    return Page(pdf_page_no=number, text=text, image_ratio=_image_ratio(page),
+                image_dpi=_image_dpi(page))
+
+
+def _image_dpi(page: pdfium.PdfPage) -> int | None:
+    """The effective resolution of the page's largest image (pixels per inch as shown),
+    or None when no image covers a fifth of the page: how much detail OCR had to read."""
+    width, height = page.get_size()
+    best, dpi = 0.0, None
+    for obj in page.get_objects(filter=[pdfium_c.FPDF_PAGEOBJ_IMAGE], max_depth=5):
+        left, bottom, right, top = obj.get_bounds()
+        area = max(0.0, right - left) * max(0.0, top - bottom)
+        if area > best and area >= 0.2 * width * height:
+            best, dpi = area, round(obj.get_px_size()[0] / ((right - left) / 72))
+    return dpi
 
 
 def _image_ratio(page: pdfium.PdfPage) -> float:

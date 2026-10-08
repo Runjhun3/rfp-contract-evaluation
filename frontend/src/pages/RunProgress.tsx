@@ -53,7 +53,7 @@ export default function RunProgress() {
       </table>
       {data.left_out.length > 0 && (
         <div className="notice info">
-          <strong>Not in this run:</strong> {data.left_out.map((f) => `${f.name} (${f.label.toLowerCase()})`).join(" · ")}.
+          <strong>Not in this run:</strong> {data.left_out.map((f) => `${f.name}`).join(" · ")}.
           {" "}Only firms the committee found eligible are evaluated.
         </div>
       )}

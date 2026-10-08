@@ -22,7 +22,7 @@ from app.schemas.llm import Fact, ItemResult
 from app.schemas.records import EvidenceCheck, Item, Page
 
 AMOUNT_FACTS = {"value_inr"}
-DATE_FACTS = {"awarded_on", "start_on", "end_on"}
+DATE_FACTS = {"awarded_on", "start_on", "end_on", "certificate_on"}
 ALIASES = {"duration": ["start_on", "end_on"], "duration_months": ["start_on", "end_on"]}
 CV_CHECKED = {"employment", "experience_years"}   # verified by the row and total checks below
 

@@ -26,7 +26,7 @@ Two rules run through every step:
 | ---- | --- | ------------ |
 | 1 | INGEST_FILE | sha256 check (re-upload = no-op). Store in S3. pypdfium2 reads the text layer of every page → `page` rows. `pages_done` updated as it goes, so the job can resume. |
 | 2 | OCR_PAGES | Pages with < 50 chars of text **or an image covering ≥ 25% of the page** are bundled into one PDF under `tmp/<file_id>/` and sent to Textract `StartDocumentTextDetection` (async). Text + confidence go back into `page`. tmp object deleted. |
-| 3 | LABEL_PAGES | Batches of ~20 pages (first 1,500 chars each) + the tender's criterion list (`code — meaning`, whole-bid criteria marked `[whole bid]`) and the eligibility requirements (`code — meaning — proof`) with `page_label_v4.md`. Any page that is evidence for a whole-bid criterion is tagged with it; every page also lists the eligibility requirements it proves (`eligibility`, several allowed, alongside its criterion). Evaluation and eligibility screening label with the same lists, so the calls are answered once (LLM reply cache). Sets `page_type`; for a claim summary the ONE `criterion_code` whose **meaning** it claims for (null if it covers several); for header/CV pages the best match by meaning, with `map_confidence`; and the item's `title`. Section-title pages are `BLANK`. Also checks the cover page for the GeM bid no. |
+| 3 | LABEL_PAGES | Batches of ~20 pages (first 1,500 chars each), each with the last 3 pages of the batch before and the labels they were given as context only (`page_label_v5.md`, D-064), + the tender's criterion list (`code — meaning`, whole-bid criteria marked `[whole bid]`) and the eligibility requirements (`code — meaning — proof`) with the label prompt. Any page that is evidence for a whole-bid criterion is tagged with it; every page also lists the eligibility requirements it proves (`eligibility`, several allowed, alongside its criterion). Evaluation and eligibility screening label with the same lists, so the calls are answered once (LLM reply cache). Sets `page_type`; for a claim summary the ONE `criterion_code` whose **meaning** it claims for (null if it covers several); for header/CV pages the best match by meaning, with `map_confidence`; and the item's `title`. Section-title pages are `BLANK`. Also checks the cover page for the GeM bid no. |
 | 4 | BUILD_PROJECTS | Deterministic Python. Each `PROJECT_HEADER` page starts an item that runs until the next header, CV or section break. **Each item belongs to exactly one criterion: the bidder's claim decides.** A CV names the position it is proposed for, so a CV page's own label decides its criterion. A claim summary for one criterion opens a section; every project after it takes that criterion until the next claim summary or marketing page. A summary spread over consecutive pages opens a section only if all its pages point to the same criterion. Items outside a section use their own page's label. The same person's CV twice under one criterion (e.g. full CV + one-page profile) is scored once: the longest copy; the others are marked `duplicate_of` and not scored. If a bidder repeats the same project under A.1, A.2 and A.3, that is three items (three copies). Items are cross-checked against the `CLAIM_SUMMARY` page (count, page ranges); differences are flagged. |
 
 Why the image rule: bidders put a typed caption ("Documentary Evidence 5:
@@ -48,6 +48,31 @@ check (`app/eligibility.py`): a reason is needed when the AI was unsure or the
 committee disagrees with it. Required documents are checked and decided the same way but
 never disqualify: one decided as not submitted is flagged. Only firms decided as
 meeting every eligibility criterion are evaluated; the others show on Results as not evaluated, with the reason (D-045).
+
+## 2c. Document checks (inside each criterion check; D-057 to D-062)
+No job and no page of their own: each eligibility check and each evaluated item checks
+the documents its verdict rests on, as part of that verdict, so it never changes after.
+The bid's document checker (`forensics/checker.py`) works on pages already read and
+OCR'd (shared per-file cache `runs/files/<file_id>`): no OCR, no AI, within the bid.
+1. Evidence pages: the pages an eligibility answer quotes its facts from (not every
+   page tagged for the requirement); an item's cited proof pages and the pages its facts
+   are quoted from. The checker is opened after the AI answers, on the union of the
+   job's evidence pages, and analyses only those (D-065).
+2. Identifiers on them (`evaluate/identifiers.py`), with the checks needing no issuer:
+   each shown as valid, a problem, or for its issuer to confirm.
+3. Forensic checks on them (`forensics/`), compared with the rest of the bid. Until
+   calibrated (`FORENSIC_FLAGS`, `run.py calibrate-forensics`) each finding is a note to
+   look at, with its box outlined on the page, that does not change the verdict (D-063).
+   A stamp's words are not judged. On a
+   scan, word positions run from `MIN_POSITION_DPI` (90) and pixels from
+   `MIN_EVIDENCE_DPI` (150) (D-060); positions are measured per run of words, leaving
+   out handwriting and words OCR is unsure of (D-061).
+4. Problems join the check's verification and are shown only with it (D-062): an
+   eligibility check becomes the committee's to decide; an item gets DOCUMENT_ID /
+   DOCUMENT_FLAG. The committee's reason for its decision on the check records what it
+   found; the export shows each problem on its check's row. An identifier's note says
+   where to confirm it. A last row says what was checked and what could not be, and why
+   (`forensics/coverage.py`).
 
 ## 3. Evaluation run
 Which criteria are scored (`app/criteria.py` `scoring`): every criterion with marks,
@@ -88,7 +113,9 @@ For every item the LLM marks eligible:
    re-adds the rows (overlaps once, "present" = bid submission date). A total
    a year or more away from the years the LLM used fails the check.
 5. Every test in `conditions` is recomputed from the fact values
-   (duration from the verified dates, CV years from the employment rows); a
+   (duration from the verified dates, CV years from the employment rows; a yes/no
+   test such as `is_completed = true` from the fact's true/false); a test against
+   words (e.g. a degree) is the AI's judgement of meaning, shown as such (D-066); a
    test that cannot be recomputed is recorded as such, never guessed. A value a
    document states only as a bound ("more than INR 3,000 crore") is read as a
    range (`bounds.py`): a test is settled only when the whole range is on one side
@@ -115,6 +142,11 @@ For every item the LLM marks eligible:
 | SUMMARY_MISMATCH | LLM's value/status differs from the bidder's summary page |
 | SUSPICIOUS_TEXT | a page contains text addressed to the evaluator (instructions, "award full marks") |
 | NO_ANCHOR | an item was found only by search, not a header page |
+| DATE_ORDER | an item's dates are out of order: it starts after it ends, is awarded after it ends, or its certificate is dated before the work started, after the bid due date, or (completed) before the work ended |
+| STATED_SUM | a total or average a document states does not equal the figures it is made of |
+| CLAIM_DIFFERS | the firm's own page and a document state different values; both quotes are on their pages |
+| REFERENCE_MISSING | a document refers to another (e.g. an extension letter) that is not among the item's pages |
+| LOW_RESOLUTION | a page the evidence was read from is a scan below `MIN_EVIDENCE_DPI` (150); context only |
 
 ## 4. Committee
 Results are per project, not per run (`app/results.py`, `/projects/<id>/results`): each

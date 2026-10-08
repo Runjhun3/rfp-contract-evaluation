@@ -1,7 +1,7 @@
 """API: the criteria read from the RFP, their rule text, and approval."""
 from starlette.routing import Route
 
-from app import criteria_edits, eligibility_actions
+from app import criteria_edits, eligibility_actions, rule_text
 from app.criteria import missing_max_marks, review_view
 from app.db import q_projects, q_prompts
 from app.db.connection import transaction
@@ -47,10 +47,23 @@ async def save_criteria(request):
         for current in before:
             cid = current["criterion_id"]
             q_projects.update_criterion(cur, cid, _fields(sent.get(cid, {}), current))
-        criteria_edits.record(cur, tender_id, before, q_projects.criteria(cur, tender_id),
-                              "COMMITTEE", user_id)
-        q_prompts.save_draft_block(cur, tender_id, str(body.get("block") or ""), user_id)
-    return ok(None, "Criteria saved")
+        after = q_projects.criteria(cur, tender_id)
+        criteria_edits.record(cur, tender_id, before, after, "COMMITTEE", user_id)
+        saved = (q_projects.latest_prompt(cur, tender_id) or {}).get("criteria_block", "")
+        block, notice = rule_text.after_save(cur, tender_id, (before, after), saved,
+                                             str(body.get("block") or ""))
+        q_prompts.save_draft_block(cur, tender_id, block, user_id)
+    return ok({"notice": notice}, "Criteria saved")
+
+
+async def rebuild_rule_text(request):
+    """The rule text the saved criteria give, for the committee to review and save."""
+    tender_id = str(request.path_params["tender_id"])
+    with _db(request) as cur:
+        if q_projects.get_project(cur, tender_id) is None:
+            return fail("Project not found", 404)
+        saved = (q_projects.latest_prompt(cur, tender_id) or {}).get("criteria_block", "")
+        return ok(rule_text.rebuilt(cur, tender_id, q_projects.criteria(cur, tender_id), saved))
 
 
 async def approve_criteria(request):
@@ -73,4 +86,6 @@ routes = [
     Route("/api/v1/projects/{tender_id:uuid}/criteria", save_criteria, methods=["POST"]),
     Route("/api/v1/projects/{tender_id:uuid}/criteria/approve", approve_criteria,
           methods=["POST"]),
+    Route("/api/v1/projects/{tender_id:uuid}/criteria/rule-text", rebuild_rule_text,
+          methods=["GET"]),
 ]

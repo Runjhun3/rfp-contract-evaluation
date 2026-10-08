@@ -59,7 +59,8 @@ def subject(cur, submission_id: str) -> dict | None:
     """The bid a CHECK_ELIGIBILITY job checks: its tender, firm and latest bid file."""
     return one_row(cur, """
         select s.tender_id::text, t.name, t.gem_bid_no, coalesce(t.department, '') as department,
-               t.bid_due_date::text as due, b.short_name, f.file_id::text, f.s3_key
+               t.bid_due_date::text as due, b.short_name, f.file_id::text,
+               f.s3_key
         from bid_submission s join tender t using (tender_id) join bidder b using (bidder_id)
         join lateral (select file_id, s3_key from submission_file x
                       where x.submission_id = s.submission_id

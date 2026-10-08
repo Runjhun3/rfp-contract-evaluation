@@ -45,5 +45,6 @@ def test_the_audit_log_lists_the_setup_oldest_first_then_every_committee_mark():
     approved = [r[0] for r in rows]
     assert "Criteria not recorded (approved before they were kept)." in approved
     assert ("A.1", "Projects", "TECHNICAL", "12", "LLM", "considered") in rows
-    assert log[-2][1:] == ("chair", "Firm/One", "C", 6, None)
-    assert log[-1][4:] == (8, "Second panel member's sheet added")
+    marks = [r for r in log if r[2] == "Firm/One" and r[3] == "C"]
+    assert marks[0][1:] == ("chair", "Firm/One", "C", 6, None)
+    assert marks[-1][4:] == (8, "Second panel member's sheet added")

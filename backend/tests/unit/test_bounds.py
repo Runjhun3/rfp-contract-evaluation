@@ -4,7 +4,8 @@ from decimal import Decimal
 from app.evaluate.bounds import parse_range, passing_range, settle, split_bound
 from app.evaluate.condition_check import condition_checks
 from app.evaluate.parse_amount import amount_matches
-from app.evidence_labels import present, show_value
+from app.evidence_labels import present
+from app.value_labels import show_value
 from app.schemas.llm import Condition, Fact, ItemResult
 
 D = Decimal

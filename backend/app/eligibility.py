@@ -1,8 +1,8 @@
 """Eligibility screening rules: AI findings decide unless the committee overrides.
 
 Every considered eligibility requirement is checked on a bid's latest file. Clear AI
-findings decide qualification automatically; only UNSURE findings wait for a committee
-decision. Committee decisions are append-only overrides (recorded by app/eligibility_actions.py).
+findings decide qualification automatically; UNSURE ones, and those whose proof failed a
+document check, wait for the committee. Its decisions are append-only overrides.
   qualified      when every effective finding is met,
   not qualified  when any effective finding is not met,
   N to decide    while any finding is unsure,
@@ -15,6 +15,7 @@ every firm with a bid, as before.
 import re
 
 from app.criteria import SCREENED
+from app.evaluate.document_checks import DOCUMENT_FLAGS
 from app.db import q_eligibility, q_projects
 
 WAITING = {"PENDING", "RUNNING"}
@@ -90,16 +91,27 @@ def _job_note(job: dict | None) -> str | None:
     return f"Check started {job['started']}{who}{why}"
 
 
+def document_flagged(check: dict) -> bool:
+    """The check's proof pages failed a document check (D-059)."""
+    return any(v.get("fact") in DOCUMENT_FLAGS and v.get("value_matches") is False
+               for v in check.get("verification") or [])
+
+
 def _cell(req: dict, check: dict | None) -> dict:
-    return {"code": req["code"], "number": req["number"], "stage": req["stage"],
+    cell = {"code": req["code"], "number": req["number"], "stage": req["stage"],
             "check_id": check["check_id"] if check else None,
             "result": check["result"] if check else None,
-            "decision": check["decision"] if check else None}
+            "decision": check["decision"] if check else None,
+            "flagged": bool(check) and document_flagged(check)}
+    return {**cell, "effective": _effective(cell)}
 
 
 def _effective(cell: dict) -> str | None:
-    """Committee override when present, otherwise the AI's verified finding."""
-    return cell["decision"] or cell["result"]
+    """Committee override when present; else the AI's verified finding, except that a
+    check whose proof failed a document check is for the committee (as if unsure)."""
+    if cell["decision"] or not cell["result"]:
+        return cell["decision"] or cell["result"]
+    return "UNSURE" if cell["flagged"] else cell["result"]
 
 
 def _status(cells: list[dict], job: dict | None, checking: bool,

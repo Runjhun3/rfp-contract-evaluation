@@ -11,9 +11,12 @@ file lists what exists and how the pieces fit together.
 | `criteria_extraction_v8.md` (superseded) | EXTRACT_CRITERIA | RFP pages | detailed criteria extraction restored; unified eligibility rows, complete marks tables, and a separate criterion source reference |
 | `criteria_extraction_v5.md` (superseded) | EXTRACT_CRITERIA | RFP pages | as v4, plus required documents as stage DOCUMENT (D.1 …), apart from eligibility; anything marked not applicable is dropped |
 | `criteria_extraction_v4.md` (superseded) | EXTRACT_CRITERIA | RFP Annexure II/III pages | criterion list JSON (v2: group headings + `parent`; v4: each eligibility row joined with its `proof` and defining conditions, every required document kept) |
-| `page_label_v4.md` | LABEL_PAGES | ~20 page snippets + criteria + eligibility requirements (with proof) | page_type per page; v4: `eligibility`, the requirements each page proves |
-| `eligibility_check_v1.md` | CHECK_ELIGIBILITY, one per bid × requirement | the requirement, the proof asked for, only its tagged pages (system: `system_v2`, no criteria block) | MET / NOT_MET / UNSURE, finding, facts with quotes, tests |
-| `item_eval_v4.md` | EVAL_ITEM | one item's pages (one criterion) | facts with quotes + judgement |
+| `page_label_v5.md` | LABEL_PAGES | as v4, plus the last 3 pages of the batch before with their labels (`{{pages_before}}`, context only) | as v4; pages before are never labelled again (D-064) |
+| `page_label_v4.md` (superseded) | LABEL_PAGES | ~20 page snippets + criteria + eligibility requirements (with proof) | page_type per page; v4: `eligibility`, the requirements each page proves |
+| `eligibility_check_v2.md` | CHECK_ELIGIBILITY, one per bid × requirement | as v1 | as v1, plus `sums`: each stated total or average with the figures it is made of (Python recomputes it) |
+| `eligibility_check_v1.md` (superseded) | CHECK_ELIGIBILITY, one per bid × requirement | the requirement, the proof asked for, only its tagged pages (system: `system_v2`, no criteria block) | MET / NOT_MET / UNSURE, finding, facts with quotes, tests |
+| `item_eval_v5.md` | EVAL_ITEM | one item's pages (one criterion) | as v4, plus: the firm's own pages are claims and the documents the RFP names are the evidence; `certificate_on`; `discrepancies` (claim vs document, both quoted); `references` (documents referred to, and whether they are among the pages); `sums` |
+| `item_eval_v4.md` (superseded) | EVAL_ITEM | one item's pages (one criterion) | facts with quotes + judgement |
 | `item_recheck_v2.md` | EVAL_ITEM, only when Python recomputes a test differently or a rejection has no hard fail | the item prompt + previous answer + findings | the full item JSON again |
 | `item_count_rule_v1.md` | EVAL_ITEM, added for a criterion scored by the number of qualifying items | code + bands | (part of the item JSON: marks 1/0) |
 | `criterion_eval_v1.md` | EVAL_CRITERION | item results JSON | counted items + marks |
@@ -22,7 +25,7 @@ file lists what exists and how the pieces fit together.
 ```
 system:  system_v2.md                           ┐ identical for every item call
          + evaluation_prompt.criteria_block     ┘ in a run → cache point here
-user:    item_eval_v4.md (+ page images for a CV) (filled: bidder, label, kind, code)
+user:    item_eval_v5.md (+ page images for a CV) (filled: bidder, label, kind, code)
          + pages: "[PDF p. 285]\n<text>\n\n[PDF p. 286]\n<text> ..."
 ```
 The criteria block is tender data (DB, human-approved). An NSDF example is
@@ -37,6 +40,7 @@ in `tests/golden/nsdf/criteria_block.md`.
 | `{{bidder}}`, `{{label}}`, `{{kind}}` | bidder / project |
 | `{{criteria_list}}` | every criterion as `code — meaning`, one per line |
 | `{{pages}}` | page rows, each prefixed `[PDF p. N]` |
+| `{{pages_before}}` | label only: the pages just before a batch, each `[PDF p. N] (labelled TYPE[, first page of: title])` |
 | `{{item_results}}` | JSON of all EVAL_ITEM judgements for one criterion, with bidder order |
 | `{{code}}`, `{{max_items}}`, `{{max_marks}}` | criterion |
 

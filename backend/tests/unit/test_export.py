@@ -64,7 +64,8 @@ def _firm() -> dict:
     items = [{"code": "A.1", "title": "Stadium PMU", "label": "A.1 p.10-20", "from_page": 10,
               "to_page": 20, "counted": True, "marks": D(2), "reason": "Completed PMU",
               "action": "OVERRIDE", "decision_reason": "Certificate accepted on review",
-              "final_counted": True, "final_marks": D(2)}]
+              "final_counted": True, "final_marks": D(2),
+              "document_notes": ["GSTIN 29ABCDE1234F1Z5: The check digit does not match."]}]
     decisions = [{"code": "A.1", "action": "OVERRIDE", "final_marks": D(2),
                   "reason": "Certificate accepted on review", "full_name": "Local user",
                   "decided": "29 Sep 2026 12:00", "title": "Stadium PMU",
@@ -75,7 +76,11 @@ def _firm() -> dict:
                "decision_reason": "Third year verified on the audited statement"},
               {"criterion_id": "e2", "stage": "ELIGIBILITY", "result": "MET",
                "decision": "NOT_MET", "pages": [7], "finding": "Bid form on p.7.",
-               "decision_reason": "Only an unsigned copy is in the bid"}]
+               "decision_reason": "Only an unsigned copy is in the bid",
+               "verification": [{"fact": "document identifier", "value_matches": False,
+                                 "note": "MISSING_UDIN: A CA's certificate with no UDIN."},
+                                {"fact": "awarded_on", "value_matches": False,
+                                 "note": "Not a document check."}]}]
     log = [{"code": "E.1", "stage": "ELIGIBILITY", "decision": "MET",
             "full_name": "Local user", "decided": "29 Sep 2026 11:00",
             "reason": "Third year verified"},
@@ -117,9 +122,13 @@ def test_each_firm_sheet_has_its_eligibility_items_and_full_decision_log():
     assert firm[4][:7] == ("1", "Turnover", "41–44, 46", None, None, "unsure", "met")
     assert "Committee: Third year verified" in firm[4][8]
     assert firm[5][:7] == ("2", "Bid form", "7", None, None, "met", "not met")
+    # A check's document problems are on its own row, between the finding and the reason.
+    assert firm[5][8] == ("Bid form on p.7.\nDocument check: MISSING_UDIN: A CA's certificate "
+                          "with no UDIN.\nCommittee: Only an unsigned copy is in the bid")
     assert firm[9][:8] == ("A.1", "Projects", None, 12, None, "approved", None, 12)
     assert firm[10][1:8] == ("Stadium PMU", "10–20", None, 2, "overridden", "yes", 2)
-    assert "Committee: Certificate accepted" in firm[10][8]
+    assert firm[10][8] == ("Completed PMU\nDocument check: GSTIN 29ABCDE1234F1Z5: The check "
+                           "digit does not match.\nCommittee: Certificate accepted on review")
     assert firm[-3][:2] == ("1", "eligibility") and firm[-3][5] == "met"
     assert firm[-2][:2] == ("2", "eligibility") and firm[-2][5] == "not met"
     assert firm[-1][:3] == ("A.1", "Stadium PMU", "10–20") and firm[-1][5] == "override"

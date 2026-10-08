@@ -1,11 +1,13 @@
 """Everything the committee sheet shows, gathered once: the project, its results
 (each participant's latest finished evaluation, ranked), the eligibility requirements
 and the criteria in order, for each participant its eligibility checks, its items
-and every committee decision, and the audit trail (audit_sheet.py).
+and every committee decision, and the audit trail (audit_sheet.py). The problems a
+check's document checks found are shown on its own row (D-062).
 """
 from app.criteria import SCREENED, group_codes
 from app.db import q_audit, q_eligibility, q_events, q_projects, q_prompts, q_results
 from app.eligibility import requirements
+from app.evaluate.document_checks import DOCUMENT_FLAGS
 from app.results import project_results
 
 WORDS = {"ELIGIBILITY": {"MET": "met", "NOT_MET": "not met", "UNSURE": "unsure"}}
@@ -18,7 +20,7 @@ def sheet_data(cur, tender_id: str) -> dict | None:
     results = project_results(cur, tender_id)
     done = [a for a in q_results.latest_attempts(cur, tender_id) if a["stage"] == "DONE"]
     items = q_results.export_items(cur, [a["run_id"] for a in done],
-                                   [a["submission_id"] for a in done])
+                                   [a["submission_id"] for a in done], list(DOCUMENT_FLAGS))
     scores = {c["score_id"]: (r["submission_id"], code) for r in results["rows"]
               for code, c in r["cells"].items()}
     decisions = [{**d, "submission_id": scores[d["score_id"]][0],
@@ -51,6 +53,12 @@ def eligibility_word(check: dict | None) -> str:
     if check["decision"]:
         return words[check["decision"]]
     return f"AI: {words[check['result']]}" if check["result"] != "UNSURE" else "awaiting committee"
+
+
+def document_notes(check: dict) -> list[str]:
+    """The problems an eligibility check's document checks found, as its row shows them."""
+    return [v["note"] for v in check.get("verification") or []
+            if v.get("fact") in DOCUMENT_FLAGS and v.get("value_matches") is False]
 
 
 def criterion_marks(criterion: dict, row: dict, criteria: list[dict]):

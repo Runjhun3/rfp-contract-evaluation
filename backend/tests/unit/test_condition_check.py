@@ -59,7 +59,8 @@ def test_a_test_that_cannot_be_recomputed_is_recorded_not_guessed():
                value_inr="100")
     checks = condition_checks(r, AS_OF)
     assert all(c.value_matches is None for c in checks) and findings(checks) == []
-    assert "could not recompute" in checks[0].note
+    assert checks[0].fact.startswith("judged: ")          # words: the AI's judgement
+    assert "could not recompute" in checks[1].note
 
 
 def fake_llm(tmp_path, answers):

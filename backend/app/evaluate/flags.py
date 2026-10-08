@@ -1,6 +1,7 @@
 """Decide needs_review and why, for one criterion. Codes: docs/pipeline.md."""
 from app.config import Settings
 from app.evaluate.condition_check import PREFIX
+from app.evaluate.document_checks import REASONS
 from app.evaluate.evidence_check import CV_CHECKED
 from app.evaluate.proof_check import PROOF
 from app.evaluate.rejection_check import REJECTION
@@ -18,8 +19,10 @@ def review_reasons(result: CriterionResult, arith: ArithmeticCheck,
     if not arith.ok:
         reasons.add("ARITHMETIC")
     if any(c.label in counted and not c.passed() for c in checks
-           if not c.fact.startswith(PREFIX) and c.fact not in (REJECTION, PROOF)):
+           if not c.fact.startswith(PREFIX) and c.fact not in (REJECTION, PROOF, *REASONS)):
         reasons.add("EVIDENCE_UNVERIFIED")
+    reasons |= {REASONS[c.fact] for c in checks
+                if c.label in judged and c.fact in REASONS and c.value_matches is False}
     if any(c.label in judged and c.value_matches is False for c in checks
            if c.fact.startswith(PREFIX)):
         reasons.add("CONDITION_MISMATCH")

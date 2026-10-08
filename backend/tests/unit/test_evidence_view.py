@@ -1,6 +1,7 @@
 from decimal import Decimal
 
-from app.evidence_labels import present, show_value
+from app.evidence_labels import present
+from app.value_labels import show_value
 from app.evidence_view import _flags, _groups
 
 T = Decimal("0.80")

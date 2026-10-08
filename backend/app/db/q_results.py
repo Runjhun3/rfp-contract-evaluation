@@ -89,7 +89,7 @@ def items(cur, run_id: str, submission_id: str, criterion_id: str) -> list[dict]
 
 def checks(cur, item_ids: list[str]) -> list[dict]:
     return all_rows(cur, """select item_id::text, fact, pdf_page_no, quote, quote_found,
-                                   match_score, parsed_value, value_matches, note
+                                   match_score, parsed_value, value_matches, note, region
                             from evidence_check where item_id = any(%s::uuid[])
                             order by check_id""", (item_ids,))
 
@@ -108,14 +108,19 @@ def bid_file_key(cur, submission_id: str) -> str | None:
     return row["s3_key"] if row else None
 
 
-def export_items(cur, run_ids: list[str], submission_ids: list[str]) -> list[dict]:
+def export_items(cur, run_ids: list[str], submission_ids: list[str],
+                 flags: list[str]) -> list[dict]:
     """Every item claimed in each (run, participant) pair, for the exported sheet: the
-    AI's marks, the committee's latest decision and the final marks (final_item)."""
+    AI's marks, the committee's latest decision, the final marks (final_item) and the
+    problems its document checks found (evidence checks whose fact is one of flags)."""
     return all_rows(cur, """
         select i.submission_id::text, c.code, i.title, i.label, i.from_page, i.to_page,
                r.counted, r.eligible, r.marks, coalesce(r.count_reason, r.reason) as reason,
                f.marks as final_marks, f.counted as final_counted,
-               d.action, d.reason as decision_reason
+               d.action, d.reason as decision_reason,
+               (select array_agg(e.note order by e.pdf_page_no) from evidence_check e
+                where e.item_id = i.item_id and e.fact = any(%s)
+                  and e.value_matches is false) as document_notes
         from bid_item i join criterion c using (criterion_id)
         left join item_result r using (item_id)
         left join final_item f on f.item_id = i.item_id
@@ -124,7 +129,7 @@ def export_items(cur, run_ids: list[str], submission_ids: list[str]) -> list[dic
                            order by x.decided_at desc limit 1) d on true
         join unnest(%s::uuid[], %s::uuid[]) as p(run_id, submission_id)
           on p.run_id = i.run_id and p.submission_id = i.submission_id
-        order by i.submission_id, c.code, i.from_page""", (run_ids, submission_ids))
+        order by i.submission_id, c.code, i.from_page""", (flags, run_ids, submission_ids))
 
 
 def export_decisions(cur, score_ids: list[str]) -> list[dict]:

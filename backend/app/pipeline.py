@@ -9,8 +9,11 @@ from app.config import Settings
 from app.evaluate.arithmetic_check import check_criterion
 from app.evaluate.copy_check import check_copies
 from app.evaluate.criterion_eval import evaluate_criterion
+from app.evaluate.document_checks import cited_pages, document_checks
+from app.evaluate.document_flags import document_flags
 from app.evaluate.evidence_check import check_item
 from app.evaluate.flags import review_reasons
+from app.forensics.checker import DocumentChecker
 from app.evaluate.item_eval import evaluate_item, system_prompt
 from app.ingest.build_items import build_items
 from app.ingest.prepare import Stage, labelled_pages
@@ -24,25 +27,24 @@ from app.storage import cached, safe_name, sha256_file, write
 
 def run(bid_pdf: Path, ctx: RunContext, criteria: list[Criterion], block: str,
         run_dir: Path, settings: Settings, llm: LlmClient, run_id: str | None = None,
-        on_stage: Stage | None = None,
-        requirements: list[Requirement] | None = None) -> list[CriterionScore]:
+        on_stage: Stage | None = None, requirements: list[Requirement] | None = None,
+        pages_dir: Path | None = None) -> list[CriterionScore]:
     """requirements: the tender's eligibility requirements. Pages are labelled with them
-    too, exactly as eligibility screening labels them, so the label calls are shared."""
+    too, exactly as eligibility screening labels them, so the label calls are shared.
+    pages_dir: the bid file's shared read and OCR (prepare.file_pages_dir)."""
     stage = on_stage or (lambda name, done=0, total=0: None)
     cached(run_dir / "run.json", dict,
            lambda: _run_meta(bid_pdf, ctx, criteria, block, settings, run_id))
     pages = labelled_pages(bid_pdf, ctx.bidder, criteria, requirements or [], run_dir,
-                           settings, llm, stage)
+                           settings, llm, stage, pages_dir)
     items = cached(run_dir / "items.json", list[Item],
                    lambda: build_items(pages, {c.code: c.kind for c in criteria}))
     by_no = {p.pdf_page_no: p for p in pages}
     results = _item_results(items, by_no, ctx, system_prompt(ctx, block), bid_pdf, run_dir,
                             llm, stage, {c.code: c for c in criteria})
     stage("CHECKS", len(items), len(items))
-    checks = cached(run_dir / "evidence_checks.json", list[EvidenceCheck],
-                    lambda: [c for i in items if i.label in results
-                             for c in check_item(results[i.label], i, by_no, settings,
-                                                 ctx.bid_due_date)])
+    checks = _evidence_checks(items, results, by_no, ctx, settings,
+                              (bid_pdf, run_dir, pages_dir or run_dir))
     copies = cached(run_dir / "copy_groups.json", list[CopyGroup],
                     lambda: check_copies(items, results))
     stage("SCORING", len(items), len(items))
@@ -50,6 +52,30 @@ def run(bid_pdf: Path, ctx: RunContext, criteria: list[Criterion], block: str,
               for c in criteria]
     write(run_dir / "scores.json", scores)
     return scores
+
+
+def _evidence_checks(items: list[Item], results: dict[str, ItemResult],
+                     pages: dict[int, Page], ctx: RunContext, settings: Settings,
+                     where: tuple[Path, Path, Path]) -> list[EvidenceCheck]:
+    """Python's checks of each item, its document checks among them (D-059), made once:
+    the bid's document checker is opened only when the checks are not yet saved, on the
+    pages the items cite (D-065). where: the bid PDF, the run folder, the file's shared
+    folder."""
+    bid_pdf, run_dir, pages_dir = where
+    path = run_dir / "evidence_checks.json"
+    if path.exists():
+        return cached(path, list[EvidenceCheck], list)
+    cited = {i.label: cited_pages(results[i.label], i) for i in items if i.label in results}
+    checker = DocumentChecker(bid_pdf, pages, settings, pages_dir,
+                              [n for pages_cited in cited.values() for n in pages_cited])
+    try:
+        checks = [c for i in items if i.label in results
+                  for c in check_item(results[i.label], i, pages, settings, ctx.bid_due_date)
+                  + document_checks(results[i.label], i, pages, settings, ctx.bid_due_date)
+                  + document_flags(i.label, cited[i.label], checker, settings)]
+    finally:
+        checker.close()
+    return cached(path, list[EvidenceCheck], lambda: checks)
 
 
 def _run_meta(bid_pdf: Path, ctx: RunContext, criteria: list[Criterion], block: str,

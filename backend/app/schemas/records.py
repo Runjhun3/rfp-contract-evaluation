@@ -44,13 +44,31 @@ class Requirement(BaseModel):
     proof: str | None = None
 
 
+class Word(BaseModel):
+    """One word and where it is on its page: x, y, w, h as fractions of the page width
+    and height from the top left. conf: OCR confidence 0-1 (None for a text layer);
+    font and size: from a text layer only."""
+    text: str
+    x: float
+    y: float
+    w: float
+    h: float
+    conf: float | None = None
+    font: str | None = None
+    size: float | None = None
+    spacing: float | None = None          # text layer: unevenness of its letter gaps (0 even)
+    handwritten: bool | None = None       # Textract: written by hand (None: not known)
+
+
 class Page(BaseModel):
     pdf_page_no: int
     text: str
     image_ratio: float = 0.0
+    image_dpi: int | None = None          # effective resolution of its largest scanned image
     ocr_text: str | None = None
     extraction: Literal["TEXT_LAYER", "TEXTRACT", "TESSERACT"] = "TEXT_LAYER"
     ocr_confidence: float | None = None
+    ocr_words: list[Word] = []            # OCR words with their boxes (document checks)
     page_type: str | None = None
     criterion_code: str | None = None
     map_confidence: float | None = None
@@ -92,6 +110,7 @@ class EvidenceCheck(BaseModel):
     parsed_value: str | None = None
     value_matches: bool | None = None   # None = value not checkable (e.g. client name)
     note: str = ""
+    region: dict[str, float] | None = None   # a forensic finding's box: x, y, w, h (0-1)
 
     def passed(self) -> bool:
         return self.quote_found and self.value_matches is not False

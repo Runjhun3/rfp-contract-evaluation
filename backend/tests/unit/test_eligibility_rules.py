@@ -92,3 +92,17 @@ def test_only_considered_eligibility_rows_are_requirements(monkeypatch):
 
 def test_without_eligibility_criteria_every_firm_with_a_bid_qualifies():
     assert status([], reqs=[]) == ("qualified", "No eligibility criteria")
+
+
+FLAGGED = [{"fact": "document identifier", "value_matches": False,
+            "note": "GSTIN 29ABCDE1234F1Z0: The check digit does not match."}]
+
+
+def test_a_clear_finding_whose_proof_failed_a_document_check_is_for_the_committee():
+    flagged = dict(check("e2"), verification=FLAGGED)
+    row = eligibility.firm(BID, REQS, [check("e1"), flagged], None)
+    assert (row["status"], row["label"]) == ("open", "1 to decide")
+    assert [(c["result"], c["effective"], c["flagged"]) for c in row["cells"]] == [
+        ("MET", "MET", False), ("MET", "UNSURE", True)]
+    decided = dict(flagged, decision="MET")
+    assert status([check("e1"), decided]) == ("qualified", "Qualified")

@@ -1,16 +1,19 @@
 """Plain-language form of one evidence check, for the committee's evidence screen.
 
 Knows only the app's own names (the fact names of the item prompt, the check names
-Python writes) and how to show a value from its suffix (_inr money, _on a date,
-_months, _years). It knows no RFP rule and changes no result.
+Python writes); values are shown as value_labels.py shows them. It knows no RFP rule
+and changes no result.
 """
-from datetime import date
-from decimal import Decimal
-
 from app.evaluate.bounds import parse_range, passing_range, settle
-from app.evaluate.condition_check import PREFIX, TESTS, parse_value
+from app.evaluate.condition_check import (JUDGED, MEANING, PREFIX, TESTS, parse_flag,
+                                          parse_value)
+from app.evaluate.date_order import DATE_ORDER
+from app.evaluate.document_checks import (CLAIM, COVERAGE, FORENSIC, IDENTIFIER, REFERENCE,
+                                          RESOLUTION)
 from app.evaluate.proof_check import PROOF
 from app.evaluate.rejection_check import REJECTION
+from app.evaluate.stated_sums import STATED_SUM
+from app.value_labels import show_value
 
 RECHECKED = "re-checked"
 NAMES = {"title": "Project title", "client": "Client", "country": "Country",
@@ -20,19 +23,31 @@ NAMES = {"title": "Project title", "client": "Client", "country": "Country",
          "stated_experience": "Experience stated in the CV", "degree": "Degree",
          "work_order_present": "Work order", "completion_or_ca_present":
          "Completion or CA certificate", REJECTION: "Why not eligible",
-         RECHECKED: "Re-checked", PROOF: "Reason and proof"}
+         RECHECKED: "Re-checked", PROOF: "Reason and proof", "certificate_on":
+         "Certificate date", DATE_ORDER: "Order of the dates", STATED_SUM: "Stated total",
+         CLAIM: "Firm's claim vs its documents", REFERENCE: "Document referred to",
+         RESOLUTION: "Scan resolution", IDENTIFIER: "Identifier on the document",
+         FORENSIC: "Document check", COVERAGE: "Document checks made"}
+# The document checks (evaluate/document_checks.py): passed, a problem, or a note.
+DOCUMENT = (DATE_ORDER, STATED_SUM, CLAIM, REFERENCE, RESOLUTION, IDENTIFIER, FORENSIC,
+            COVERAGE)
 WORDS = {">": "above", ">=": "at least", "≥": "at least", "<": "below", "<=": "at most",
          "≤": "at most", "=": "equal to", "==": "equal to"}
 
 
 def present(check: dict, facts: dict) -> dict:
-    """{label, detail, quote, page, state}; state is problem, note or passed."""
+    """{label, detail, quote, page, region, state}; state is problem, note or passed;
+    region: the box on the page a forensic finding is about, if any."""
     shown = {"quote": check["quote"], "page": check["pdf_page_no"]}
+    if check.get("region"):
+        shown["region"] = check["region"]
     if check["fact"].startswith(PREFIX):
         return {**shown, **_test(check)}
-    if check["fact"] in (REJECTION, RECHECKED, PROOF):
+    if check["fact"].startswith(JUDGED):
+        return {**shown, **_judged(check)}
+    if check["fact"] in (REJECTION, RECHECKED, PROOF, *DOCUMENT):
         state = "problem" if check["value_matches"] is False \
-            else "passed" if check["fact"] == PROOF else "note"
+            else "passed" if check["fact"] == PROOF or check["value_matches"] else "note"
         note = (check["note"] or "").removeprefix("not eligible: ")
         return {**shown, "label": NAMES[check["fact"]], "state": state, "detail": _sentence(note)}
     return {**shown, "label": fact_name(check["fact"]), **_quote(check, facts)}
@@ -44,28 +59,10 @@ def fact_name(name: str) -> str:
     return NAMES.get(name, name.replace("_", " ").capitalize())
 
 
-def show_value(fact: str, value) -> str:
-    bound = parse_range(str(value))
-    if bound:                                   # "more than 300000000000" etc.
-        number = bound[0] if bound[0] is not None else bound[2]
-        if bound[0] is not None:
-            word = "more than" if bound[1] else "at least"
-        else:
-            word = "less than" if bound[3] else "at most"
-        return f"{word} {show_value(fact, str(number))}"
-    parsed = parse_value(str(value))
-    if isinstance(parsed, date):
-        return f"{parsed.day} {parsed:%b %Y}"
-    if isinstance(parsed, Decimal) and fact.endswith("_inr"):
-        return _rupees(parsed)
-    for suffix, unit in (("_months", "months"), ("_years", "years")):
-        if isinstance(parsed, Decimal) and fact.endswith(suffix):
-            return f"{_plain(parsed)} {unit}"
-    return str(value)
-
-
 def _test(check: dict) -> dict:
     fact, test, threshold = check["fact"][len(PREFIX):].split(" ", 2)
+    if parse_flag(threshold) is not None and check["value_matches"] is not None:
+        return _flag(check, fact)
     label = f"{fact_name(fact)} {WORDS.get(test, test)} {show_value(fact, threshold)}"
     value = parse_value(check["parsed_value"]) or parse_range(check["parsed_value"])
     limit = parse_value(threshold)
@@ -81,6 +78,24 @@ def _test(check: dict) -> dict:
         return {"label": label, "state": "passed", "detail": answer}
     return {"label": label, "state": "problem",
             "detail": f"Python: {answer}; the AI said {'no' if met else 'yes'}"}
+
+
+def _flag(check: dict, fact: str) -> dict:
+    """A yes/no test, recomputed from the fact: e.g. "Completed: Yes"."""
+    said = "Yes" if parse_flag(check["parsed_value"]) else "No"
+    if check["value_matches"]:
+        return {"label": fact_name(fact), "state": "passed",
+                "detail": f"{said}, as the RFP's test requires"}
+    return {"label": fact_name(fact), "state": "problem",
+            "detail": f"The fact says {said.lower()}; the AI's test said otherwise"}
+
+
+def _judged(check: dict) -> dict:
+    """A test against words: the AI's judgement of meaning, shown as such."""
+    fact, test, threshold = check["fact"][len(JUDGED):].split(" ", 2)
+    met = check["note"].startswith(f"{MEANING}met")
+    return {"label": f"{fact_name(fact)} {WORDS.get(test, test)} {threshold}",
+            "state": "passed" if met else "note", "detail": check["note"]}
 
 
 def _quote(check: dict, facts: dict) -> dict:
@@ -101,17 +116,6 @@ def _quote(check: dict, facts: dict) -> dict:
                                               + (f" ({show_value(check['fact'], used)})"
                                                  if used else "")}
     return {"state": "passed", "detail": f"Found on page {page}" if page else "Found"}
-
-
-def _rupees(amount: Decimal) -> str:
-    for size, word in ((Decimal(10) ** 7, "crore"), (Decimal(10) ** 5, "lakh")):
-        if amount >= size:
-            return f"₹{_plain(amount / size)} {word}"
-    return f"₹{_plain(amount)}"
-
-
-def _plain(number: Decimal) -> str:
-    return format(number.quantize(Decimal("0.01")).normalize(), "f")
 
 
 def _sentence(text: str | None) -> str:

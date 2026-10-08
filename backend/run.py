@@ -10,6 +10,8 @@
   python run.py web                          # API + built React UI on http://127.0.0.1:8000
   python run.py worker                       # background jobs (run alongside web)
   python run.py save-run --run runs/nsdf/deloitte --project "NSDF PMU 2026"
+  python run.py calibrate-forensics --bid A.pdf --run-dir runs/<run>/<submission> \
+      --out runs/calibration/firm
 """
 import argparse
 from datetime import date
@@ -41,6 +43,9 @@ def main() -> None:
             lambda secs: datetime.fromtimestamp(secs, ZoneInfo(TIMEZONE)).timetuple())
         logging.basicConfig(level=logging.INFO, format="%(asctime)s IST %(name)s %(message)s")
         forever(get_settings())
+    elif args.command == "calibrate-forensics":
+        from app.forensics.calibrate import calibrate
+        print(calibrate(get_settings(), Path(args.bid), Path(args.run_dir), Path(args.out)))
     elif args.command == "save-run":
         from app.db.save_run import save_run
         print("saved run", save_run(get_settings(), Path(args.run), args.project))
@@ -85,6 +90,10 @@ def _parser() -> argparse.ArgumentParser:
     save = sub.add_parser("save-run", help="load a finished run folder into Postgres")
     for name in ("--run", "--project"):
         save.add_argument(name, required=True)
+    cal = sub.add_parser("calibrate-forensics",
+                         help="report the document checks of an evaluated genuine bid")
+    for name in ("--bid", "--run-dir", "--out"):
+        cal.add_argument(name, required=True)
     return parser
 
 

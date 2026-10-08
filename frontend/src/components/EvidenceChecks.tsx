@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { boxParam } from "./BidPage";
 import { marks } from "../format";
 import type { CheckView, Verdict } from "../types";
 
@@ -6,8 +7,10 @@ type Props = { item: Verdict; checks: CheckView[]; pageLink: (page: number) => s
 
 const STATUS = { counted: "Counted", not_counted: "Not counted", not_scored: "Not scored" };
 
-// One check in plain words, with a link to its page. Also lists an eligibility check's proof.
+// One check in plain words, with a link to its page (a document check's finding opens
+// with its box outlined). Also lists an eligibility check's proof.
 export function CheckRow({ c, pageLink }: { c: CheckView; pageLink: Props["pageLink"] }) {
+  const to = c.page ? pageLink(c.page) + (c.region ? boxParam(c.region) : "") : "";
   return (
     <div className={`chk ${c.state}`}>
       <strong aria-hidden="true">{c.state === "passed" ? "✓" : c.state === "problem" ? "!" : "i"}</strong>
@@ -15,16 +18,37 @@ export function CheckRow({ c, pageLink }: { c: CheckView; pageLink: Props["pageL
         <strong>{c.label}</strong> <span className="small muted">{c.detail}</span>
         {c.quote && <q>{c.quote}</q>}
       </span>
-      {c.page ? <Link className="small" to={pageLink(c.page)}>p. {c.page}</Link> : <span />}
+      {c.page ? <Link className="small" to={to}>p. {c.page}</Link> : <span />}
     </div>
   );
 }
 
-// One item: the verdict, what the committee must decide, then only the checks that
-// need a look. Passed checks fold into one line.
+// The checks in three folds, each one line until opened: problems (open at first, they
+// need a look), notes, and passed checks.
+const GROUPS = [
+  { state: "problem", icon: "!", one: "problem to look at", many: "problems to look at", open: true },
+  { state: "note", icon: "i", one: "note", many: "notes", open: false },
+  { state: "passed", icon: "✓", one: "check passed", many: "checks passed", open: false },
+] as const;
+
+export function CheckGroups({ checks, pageLink }: { checks: CheckView[]; pageLink: Props["pageLink"] }) {
+  return (
+    <>
+      {GROUPS.map((g) => {
+        const rows = checks.filter((c) => c.state === g.state);
+        return rows.length > 0 && (
+          <details key={g.state} className={`checks ${g.state}`} open={g.open}>
+            <summary>{g.icon} {rows.length} {rows.length === 1 ? g.one : g.many}</summary>
+            {rows.map((c, i) => <CheckRow key={i} c={c} pageLink={pageLink} />)}
+          </details>
+        );
+      })}
+    </>
+  );
+}
+
+// One item: the verdict, what the committee must decide, then its checks, folded.
 export default function EvidenceChecks({ item, checks, pageLink }: Props) {
-  const open = checks.filter((c) => c.state !== "passed");
-  const passed = checks.filter((c) => c.state === "passed");
   return (
     <>
       <h2>{item.title}</h2>
@@ -41,13 +65,7 @@ export default function EvidenceChecks({ item, checks, pageLink }: Props) {
         {item.judgement_call && <strong>For the committee to decide</strong>}
         <p>{item.reason}</p>
       </div>
-      {open.map((c, i) => <CheckRow key={i} c={c} pageLink={pageLink} />)}
-      {passed.length > 0 && (
-        <details className="passed">
-          <summary>✓ {passed.length} check{passed.length === 1 ? "" : "s"} passed</summary>
-          {passed.map((c, i) => <CheckRow key={i} c={c} pageLink={pageLink} />)}
-        </details>
-      )}
+      <CheckGroups checks={checks} pageLink={pageLink} />
       {!checks.length && <p className="muted">No checks recorded for this item.</p>}
     </>
   );

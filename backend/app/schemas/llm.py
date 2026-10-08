@@ -3,11 +3,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
-
-class Fact(BaseModel):
-    value: str | None = None
-    page: int | None = None
-    quote: str | None = None
+from app.schemas.documents import Discrepancy, Fact, Reference, StatedSum
 
 
 class Evidence(BaseModel):
@@ -87,6 +83,9 @@ class ItemResult(BaseModel):
     reason: str
     confidence: float
     suspicious_text: list[Suspicious] = Field(default_factory=list)
+    discrepancies: list[Discrepancy] = Field(default_factory=list)
+    references: list[Reference] = Field(default_factory=list)
+    sums: list[StatedSum] = Field(default_factory=list)
     recheck: Recheck | None = None
 
     def all_facts(self) -> dict[str, Fact | None]:
@@ -138,3 +137,4 @@ class EligibilityResult(BaseModel):
     facts: dict[str, Fact | None] = Field(default_factory=dict)
     conditions: list[Condition] = Field(default_factory=list)
     suspicious_text: list[Suspicious] = Field(default_factory=list)
+    sums: list[StatedSum] = Field(default_factory=list)

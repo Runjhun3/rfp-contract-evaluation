@@ -5,15 +5,20 @@ The answer is a recommendation (met / not met / unsure); the committee decides e
 check (app/eligibility.py). Python checks, and never corrects:
   - every quote is on its page, and that page is one the AI was given,
   - every amount (fact named *_inr) or date (*_on) is what its quote states,
-  - every numeric or date test gives the same result when recomputed.
+  - every numeric or date test gives the same result when recomputed,
+  - every total or average a document states adds up (stated_sums.py),
+  - the pages its facts come from are not scanned too low to read (document_checks.py),
+    and (with the job) their document checks: only those pages, never all tagged ones.
 A requirement with no tagged page gets no call: it is unsure, for the committee to look.
 """
 from datetime import date
 
 from app.config import Settings
 from app.evaluate.condition_check import condition_checks
+from app.evaluate.document_checks import low_resolution
 from app.evaluate.evidence_check import check_fact
 from app.evaluate.item_eval import render_pages
+from app.evaluate.stated_sums import stated_sums
 from app.llm.client import LlmClient
 from app.llm.prompts import fill, load
 from app.schemas.llm import EligibilityResult, ItemResult
@@ -56,7 +61,15 @@ def verify(result: EligibilityResult, tagged: list[int], pages: dict[int, Page],
     as_item = ItemResult(label=result.code, code=result.code, facts=result.facts,
                          conditions=result.conditions, eligible=result.result == "MET",
                          marks=0, reason=result.finding, confidence=1.0)
-    return checks + condition_checks(as_item, as_of)
+    return (checks + condition_checks(as_item, as_of)
+            + stated_sums(result.code, result.sums, result.facts, settings)
+            + low_resolution(result.code, cited_pages(result, tagged), pages, settings))
+
+
+def cited_pages(result: EligibilityResult, tagged: list[int]) -> list[int]:
+    """The check's evidence: the pages it was given that its facts are quoted from (the
+    documents its verdict rests on, D-062), not every page tagged for it."""
+    return sorted({f.page for f in result.facts.values() if f and f.page in tagged})
 
 
 def _kind(name: str) -> str | None:

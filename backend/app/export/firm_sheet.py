@@ -3,13 +3,14 @@
 Its totals and rank; its eligibility checks (the AI's result, the committee's decision
 and the finding); each criterion in the RFP's order with its final marks and how they
 were settled, and under it every item the participant claimed: the AI's marks, the
-committee's latest decision and the final marks. Last, every committee decision on its
+committee's latest decision and the final marks. A problem a check's document checks
+found is on that check's own row ("Document check: ..."). Last, every committee decision on its
 eligibility and its marks, oldest first (the full log, repeated decisions included).
 """
 import re
 
 from app.criteria import group_codes
-from app.export.sheet_data import WORDS, criterion_marks, eligibility_word
+from app.export.sheet_data import WORDS, criterion_marks, document_notes, eligibility_word
 from app.export.sheet_style import TITLE, bold_row, page_ranges, pages, style
 from app.web.common import format_marks
 
@@ -50,6 +51,7 @@ def _eligibility(sheet, firm: dict, requirements: list[dict]) -> None:
     for req in requirements:
         check = checks.get(req["criterion_id"])
         finding = "\n".join(p for p in (check and check["finding"],
+                                        *(check and _flagged(document_notes(check)) or []),
                                         check and check["decision_reason"]
                                         and f"Committee: {check['decision_reason']}") if p)
         ai = WORDS[check["stage"]][check["result"]] if check else ""
@@ -104,11 +106,15 @@ def _settled(criterion: dict, row: dict, groups: set[str]) -> str:
 
 
 def _reason(item: dict) -> str:
-    """The AI's reason, and the committee's when it gave one."""
-    parts = [item["reason"] or ""]
+    """The AI's reason, what its document checks found, and the committee's reason."""
+    parts = [item["reason"] or "", *_flagged(item.get("document_notes") or [])]
     if item["decision_reason"]:
         parts.append(f"Committee: {item['decision_reason']}")
     return "\n".join(p for p in parts if p)
+
+
+def _flagged(notes: list[str]) -> list[str]:
+    return [f"Document check: {n}" for n in notes]
 
 
 def _name(short_name: str, taken: list[str]) -> str:

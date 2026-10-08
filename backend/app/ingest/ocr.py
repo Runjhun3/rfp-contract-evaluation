@@ -1,6 +1,7 @@
 """OCR the pages that need it. Engine from settings:
 - textract  : production (S3 + Textract, ap-south-1)
 - tesseract : local development without AWS (needs the `tesseract` binary)
+Each OCR'd page keeps its text, its average confidence and its words with their boxes.
 """
 import subprocess
 import tempfile
@@ -11,9 +12,10 @@ import pypdfium2 as pdfium
 
 from app.config import Settings
 from app.ingest.read_pages import needs_ocr
-from app.schemas.records import Page
+from app.schemas.records import Page, Word
 
 RENDER_DPI = 200
+Found = dict[int, tuple[str, float | None, list[Word]]]
 
 
 def ocr_pages(pdf_path: Path, pages: list[Page], settings: Settings, key: str) -> list[Page]:
@@ -27,26 +29,51 @@ def ocr_pages(pdf_path: Path, pages: list[Page], settings: Settings, key: str) -
         found, engine = tesseract_pages(pdf_path, todo), "TESSERACT"
     for page in pages:
         if page.pdf_page_no in found:
-            page.ocr_text, page.ocr_confidence = found[page.pdf_page_no]
+            page.ocr_text, page.ocr_confidence, page.ocr_words = found[page.pdf_page_no]
             page.extraction = engine
     return pages
 
 
-def tesseract_pages(pdf_path: Path, page_nos: list[int]) -> dict[int, tuple[str, float | None]]:
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        texts = pool.map(lambda n: _tesseract_one(pdf_path, n), page_nos)
-        return {n: (text, None) for n, text in zip(page_nos, texts)}
+def tesseract_pages(pdf_path: Path, page_nos: list[int]) -> Found:
+    """PDFium is not thread-safe: the pages are rendered one by one, then read by
+    Tesseract in parallel."""
+    with tempfile.TemporaryDirectory() as tmp:
+        sizes = _render(pdf_path, page_nos, Path(tmp))
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            tsvs = pool.map(lambda n: _tesseract(Path(tmp) / f"{n}.png"), page_nos)
+            return {n: read_tsv(tsv, *sizes[n]) for n, tsv in zip(page_nos, tsvs)}
 
 
-def _tesseract_one(pdf_path: Path, page_no: int) -> str:
+def _render(pdf_path: Path, page_nos: list[int], folder: Path) -> dict[int, tuple[int, int]]:
     pdf = pdfium.PdfDocument(str(pdf_path))
     try:
-        image = pdf[page_no - 1].render(scale=RENDER_DPI / 72).to_pil()
+        sizes = {}
+        for n in page_nos:
+            image = pdf[n - 1].render(scale=RENDER_DPI / 72).to_pil()
+            image.save(folder / f"{n}.png")
+            sizes[n] = image.size
+        return sizes
     finally:
         pdf.close()
-    with tempfile.TemporaryDirectory() as tmp:
-        png = Path(tmp) / "page.png"
-        image.save(png)
-        done = subprocess.run(["tesseract", str(png), "-"], capture_output=True,
-                              text=True, check=True)
-    return done.stdout
+
+
+def _tesseract(png: Path) -> str:
+    return subprocess.run(["tesseract", str(png), "-", "tsv"], capture_output=True,
+                          encoding="utf-8", errors="replace", check=True).stdout
+
+
+def read_tsv(tsv: str, width: int, height: int) -> tuple[str, float | None, list[Word]]:
+    """Tesseract's word table: the text line by line, the mean confidence, the words."""
+    lines: dict[tuple, list[str]] = {}
+    words = []
+    for row in tsv.splitlines()[1:]:
+        cells = row.split("\t")
+        if len(cells) < 12 or cells[0] != "5" or not cells[11].strip():
+            continue
+        left, top, w, h, conf = (float(c) for c in cells[6:11])
+        lines.setdefault(tuple(cells[1:5]), []).append(cells[11])
+        words.append(Word(text=cells[11], x=left / width, y=top / height, w=w / width,
+                          h=h / height, conf=round(max(conf, 0) / 100, 3)))
+    text = "\n".join(" ".join(line) for line in lines.values())
+    confidence = round(sum(w.conf for w in words) / len(words), 3) if words else None
+    return text, confidence, words

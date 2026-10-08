@@ -35,7 +35,7 @@ tender ─┬─ tender_document ─── criteria_extraction (what each extrac
         │                  ├─ page_label (LLM labels for this run)
         │                  ├─ copy_group
         │                  ├─ bid_item ─┬─ item_result
-        │                  │            └─ evidence_check
+        │                  │            └─ evidence_check (a finding's box: region, 018)
         │                  └─ criterion_score ─── review_decision
         ├─ manual_score ─── manual_score_history (per submission × criterion)
         ├─ audit_event (tender_id null: the shared firm list)

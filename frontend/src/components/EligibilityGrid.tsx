@@ -7,11 +7,12 @@ type Props = { requirements: Requirement[]; firms: EligibilityFirm[] };
 // Clear AI findings are shown plainly; only an unresolved AI-uncertain finding is highlighted.
 function Cell({ cell, firm }: { cell: EligibilityCell; firm: string }) {
   if (!cell.check_id || !cell.result) return <span className="muted">—</span>;
-  const shown = cell.decision ?? cell.result;
+  const shown = cell.decision ?? cell.effective ?? cell.result;
   const said = word(cell.stage, shown);
-  const pending = !cell.decision && cell.result === "UNSURE";
+  const pending = !cell.decision && shown === "UNSURE";
+  const why = cell.flagged ? "a document check flagged its proof" : "AI unsure";
   const title = `${firm} · ${cell.number}: ${cell.decision ? `committee override: ${said}`
-    : pending ? "AI unsure; committee decision needed" : `AI: ${said}`}`;
+    : pending ? `${why}; committee decision needed` : `AI: ${said}`}`;
   return (
     <Link className={`cell mark ${MARK[shown].cls}${cell.decision ? " decided" : ""}${pending ? " pending" : ""}`}
       to={`/eligibility/${cell.check_id}`} title={title}>

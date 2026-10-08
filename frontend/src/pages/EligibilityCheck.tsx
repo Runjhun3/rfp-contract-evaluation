@@ -2,7 +2,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import BidPage from "../components/BidPage";
 import CheckDecisionForm from "../components/CheckDecisionForm";
 import CheckList from "../components/CheckList";
-import { CheckRow } from "../components/EvidenceChecks";
+import { CheckGroups } from "../components/EvidenceChecks";
 import { usePageTitle } from "../components/Layout";
 import { Loading } from "../components/Status";
 import { CHIP, titled, word } from "../eligibility";
@@ -22,10 +22,10 @@ export default function EligibilityCheck() {
   const { firm, check, project } = data;
   const pageNo = Number(params.get("page")) || check?.first_page || 1;
   const at = (page: number) => `?page=${page}`;
-  const passed = check ? check.proof.filter((c) => c.state === "passed") : [];
   // After a decision, go on to the next AI-uncertain check.
   const saved = () => {
-    const next = firm.cells.find((c) => c.check_id && c.result === "UNSURE" && !c.decision && c.check_id !== check?.check_id);
+    const next = firm.cells.find((c) => c.check_id && c.effective === "UNSURE" && !c.decision
+      && c.check_id !== check?.check_id);
     if (next?.check_id) navigate(`/eligibility/${next.check_id}`);
     else reload();
   };
@@ -57,18 +57,16 @@ export default function EligibilityCheck() {
                 <strong>Eligibility criterion · AI: {word(check.stage, check.result)}</strong>
                 <span className="muted"> · checked {check.checked}{check.pages.length ? ` · ${check.pages.length === 1 ? "page" : "pages"} ${pageRanges(check.pages)}` : ""}</span>
               </div>
-              <div className={check.result === "UNSURE" ? "callout" : undefined}>
-                {check.result === "UNSURE" && <strong>For the committee to decide</strong>}
+              <div className={check.result === "UNSURE" || check.flagged ? "callout" : undefined}>
+                {(check.result === "UNSURE" || check.flagged) && (
+                  <strong>
+                    For the committee to decide
+                    {check.flagged && check.result !== "UNSURE" && ": a document check flagged its proof"}
+                  </strong>
+                )}
                 <p>{check.finding}</p>
               </div>
-              {/* Only the checks that need a look stay open; passed ones fold into one line. */}
-              {check.proof.filter((c) => c.state !== "passed").map((c, i) => <CheckRow key={i} c={c} pageLink={at} />)}
-              {passed.length > 0 && (
-                <details className="passed">
-                  <summary>✓ {passed.length} check{passed.length === 1 ? "" : "s"} passed</summary>
-                  {passed.map((c, i) => <CheckRow key={i} c={c} pageLink={at} />)}
-                </details>
-              )}
+              <CheckGroups checks={check.proof} pageLink={at} />
               <details>
                 <summary className="small">What the RFP requires</summary>
                 <p className="small">{check.rfp_text}</p>

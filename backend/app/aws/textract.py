@@ -2,7 +2,9 @@
 
 Only the pages that need OCR are copied into one small PDF, uploaded to
 s3://<bucket>/tmp/<key>/ocr.pdf, read with async StartDocumentTextDetection,
-then the tmp object is deleted.
+then the tmp object is deleted. Each page gives its lines (the text) and its words
+with their boxes, confidence and whether handwritten (the document checks need where
+each word is, and leave handwriting out).
 """
 import io
 import time
@@ -12,23 +14,25 @@ import pypdfium2 as pdfium
 
 from app.aws.clients import client
 from app.config import Settings
+from app.schemas.records import Word
 
 POLL_SECONDS = 10
 TIMEOUT_SECONDS = 30 * 60
 
 
 def textract_pages(pdf_path: Path, page_nos: list[int], settings: Settings,
-                   key: str) -> dict[int, tuple[str, float | None]]:
+                   key: str) -> dict[int, tuple[str, float | None, list[Word]]]:
     s3, textract = client("s3", settings), client("textract", settings)
     object_key = f"tmp/{key}/ocr.pdf"
     s3.put_object(Bucket=settings.s3_bucket, Key=object_key, Body=_bundle(pdf_path, page_nos))
     try:
         job = textract.start_document_text_detection(
             DocumentLocation={"S3Object": {"Bucket": settings.s3_bucket, "Name": object_key}})
-        lines = _collect_lines(textract, job["JobId"])
+        lines, words = _collect(textract, job["JobId"])
     finally:
         s3.delete_object(Bucket=settings.s3_bucket, Key=object_key)
-    return {page_nos[i - 1]: _join(lines.get(i, [])) for i in range(1, len(page_nos) + 1)}
+    return {page_nos[i - 1]: (*_join(lines.get(i, [])), words.get(i, []))
+            for i in range(1, len(page_nos) + 1)}
 
 
 def _bundle(pdf_path: Path, page_nos: list[int]) -> bytes:
@@ -43,8 +47,9 @@ def _bundle(pdf_path: Path, page_nos: list[int]) -> bytes:
         source.close()
 
 
-def _collect_lines(textract, job_id: str) -> dict[int, list[tuple[str, float]]]:
-    deadline, token, lines = time.time() + TIMEOUT_SECONDS, None, {}
+def _collect(textract, job_id: str) -> tuple[dict[int, list[tuple[str, float]]],
+                                             dict[int, list[Word]]]:
+    deadline, token, lines, words = time.time() + TIMEOUT_SECONDS, None, {}, {}
     while True:
         args = {"JobId": job_id, **({"NextToken": token} if token else {})}
         result = textract.get_document_text_detection(**args)
@@ -58,9 +63,18 @@ def _collect_lines(textract, job_id: str) -> dict[int, list[tuple[str, float]]]:
         for block in result["Blocks"]:
             if block["BlockType"] == "LINE":
                 lines.setdefault(block["Page"], []).append((block["Text"], block["Confidence"]))
+            elif block["BlockType"] == "WORD":
+                words.setdefault(block["Page"], []).append(_word(block))
         token = result.get("NextToken")
         if not token:
-            return lines
+            return lines, words
+
+
+def _word(block: dict) -> Word:
+    box = block["Geometry"]["BoundingBox"]
+    return Word(text=block["Text"], x=box["Left"], y=box["Top"], w=box["Width"],
+                h=box["Height"], conf=round(block["Confidence"] / 100, 3),
+                handwritten=block.get("TextType") == "HANDWRITING")
 
 
 def _join(lines: list[tuple[str, float]]) -> tuple[str, float | None]:

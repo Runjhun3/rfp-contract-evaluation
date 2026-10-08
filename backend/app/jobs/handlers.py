@@ -12,6 +12,7 @@ from app.db.connection import one_row, transaction
 from app.db.save_run import save_output
 from app.ingest.extract_criteria import build_block, decimal_or_none, extract
 from app.ingest.ocr import ocr_pages
+from app.ingest.prepare import file_pages_dir
 from app.ingest.read_pages import read_pages
 from app.jobs import tender_rules
 from app.llm.client import LlmClient
@@ -89,12 +90,13 @@ def evaluate_submission(settings: Settings, llm: LlmClient, job: dict) -> None:
     with transaction(settings) as cur:
         ctx, block, criteria, ids, file, requirements = _load(cur, run_id, submission_id)
     stage = _stage_writer(settings, run_id, submission_id)
+    run_dir = Path(settings.runs_dir) / run_id / submission_id
     run_pipeline(files.local_path(settings, file["s3_key"]), ctx, criteria, block,
-                 Path(settings.runs_dir) / run_id / submission_id, settings, llm,
-                 run_id=run_id, on_stage=stage, requirements=requirements)
+                 run_dir, settings, llm, run_id=run_id, on_stage=stage,
+                 requirements=requirements,
+                 pages_dir=file_pages_dir(settings, file["file_id"]))
     with transaction(settings) as cur:
-        save_output(cur, Path(settings.runs_dir) / run_id / submission_id, run_id,
-                    submission_id, file["file_id"], ids)
+        save_output(cur, run_dir, run_id, submission_id, file["file_id"], ids)
         q_runs.set_stage(cur, run_id, submission_id, "DONE")
         q_runs.close_run_if_done(cur, run_id)
 

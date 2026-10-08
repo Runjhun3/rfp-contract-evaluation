@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from app.db import q_projects, q_results
 from app.evaluate.condition_check import PREFIX
+from app.evaluate.document_checks import REASONS
 from app.evaluate.proof_check import PROOF
 from app.evaluate.rejection_check import REJECTION
 from app.evidence_labels import RECHECKED, present
@@ -16,7 +17,9 @@ from app.review import ai_marks, item_limit
 # one of them gets the attention dot. Context-only reasons (scanned pages, low-confidence
 # mapping) do not.
 DECIDE = {"CONDITION_MISMATCH", "UNSUPPORTED_REJECTION", "NO_PROOF", "RECHECKED",
-          "EVIDENCE_UNVERIFIED", "LOW_CONFIDENCE", "COPY_MISMATCH", "SUSPICIOUS_TEXT"}
+          "EVIDENCE_UNVERIFIED", "LOW_CONFIDENCE", "COPY_MISMATCH", "SUSPICIOUS_TEXT",
+          "DATE_ORDER", "STATED_SUM", "CLAIM_DIFFERS", "REFERENCE_MISSING",
+          "DOCUMENT_ID", "DOCUMENT_FLAG"}
 GROUPS = (("counted", "Counted"), ("not_counted", "Not counted"),
           ("not_scored", "Not scored"))
 
@@ -56,7 +59,10 @@ def _flags(item: dict, checks: list[dict], threshold: Decimal) -> set[str]:
     if item["copy_mismatches"] and item["counted"]:
         found.add("COPY_MISMATCH")
     for c in checks:
-        if c["fact"] == RECHECKED:
+        if c["fact"] in REASONS:
+            if c["value_matches"] is False:
+                found.add(REASONS[c["fact"]])
+        elif c["fact"] == RECHECKED:
             found.add("RECHECKED")
         elif c["value_matches"] is False and c["fact"].startswith(PREFIX):
             found.add("CONDITION_MISMATCH")

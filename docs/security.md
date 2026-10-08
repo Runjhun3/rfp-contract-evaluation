@@ -41,6 +41,9 @@ Bids are commercially confidential, and CVs contain personal data (DPDP Act
   checked to contain none. Keep it that way (coding-standards.md, Frontend).
 - Every write (POST) carries the session's CSRF token in `X-CSRF-Token`; the
   session cookie is `SameSite=Strict`.
+- The forensic document checks (D-058) add numpy and opencv-python-headless. They
+  run on the server only and call nothing outside it; no bid page leaves it (crops are
+  made only by `run.py calibrate-forensics`, into a local folder, never served).
 - npm packages are code we run: keep the list short, commit
   `package-lock.json`, run `npm audit` before each release.
 

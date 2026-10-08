@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { post } from "../api";
+import { get, post } from "../api";
 import CriteriaTable from "../components/CriteriaTable";
 import EligibilityTable from "../components/EligibilityTable";
+import RuleText from "../components/RuleText";
 import Section from "../components/Section";
 import { usePageTitle } from "../components/Layout";
 import ProjectHead from "../components/ProjectHead";
@@ -14,6 +15,10 @@ import { useApi } from "../useApi";
 // While the worker is still reading the RFP there are no criteria: check again every 10 s.
 const waitForCriteria = (d: CriteriaPage) => (d.criteria.length ? null : 10000);
 const isScreened = (c: Criterion) => c.stage === "ELIGIBILITY";
+const REBUILT = "Rebuilt from the saved criteria. Review it, then Save changes "
+  + "(reload the page to discard it).";
+const READ_BACK = " The RFP's general conditions were copied from the current rule text "
+  + "(this project was read before they were kept): check them.";
 
 export default function Criteria() {
   const { tenderId } = useParams();
@@ -21,6 +26,7 @@ export default function Criteria() {
   const { data, error, reload } = useApi<CriteriaPage>(`/api/v1/projects/${tenderId}/criteria`, waitForCriteria);
   const [rows, setRows] = useState<Criterion[]>([]);
   const [block, setBlock] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   usePageTitle(data && `Criteria · ${data.project.name}`);
@@ -33,14 +39,14 @@ export default function Criteria() {
 
   if (!data) return <Loading error={error} />;
   const { prompt } = data;
+  const base = `/api/v1/projects/${tenderId}`;
   const approved = prompt?.status === "APPROVED";
 
-  async function act(path: string, body: unknown, after: () => void) {
+  async function act<T>(send: () => Promise<T>, after: (reply: T) => void) {
     setBusy(true);
     setSaveError(null);
     try {
-      await post(path, body);
-      after();
+      after(await send());
     } catch (err) {
       setSaveError((err as Error).message);
     } finally {
@@ -49,10 +55,19 @@ export default function Criteria() {
   }
   const save = (e: FormEvent) => {
     e.preventDefault();
-    act(`/api/v1/projects/${tenderId}/criteria`, { criteria: rows, block }, reload);
+    act(() => post<{ notice: string | null }>(`${base}/criteria`, { criteria: rows, block }),
+      (reply) => { setNotice(reply?.notice ?? null); reload(); });
   };
   const approve = () =>
-    act(`/api/v1/projects/${tenderId}/criteria/approve`, undefined, () => navigate(`/projects/${tenderId}/participants`));
+    act(() => post(`${base}/criteria/approve`),
+      () => navigate(`/projects/${tenderId}/participants`));
+  // Fills the box only; the committee reviews the text and saves it.
+  const rebuild = () =>
+    act(() => get<{ text: string; recorded: boolean }>(`${base}/criteria/rule-text`), (reply) => {
+      setBlock(reply.text);
+      setNotice(REBUILT + (reply.recorded ? "" : READ_BACK));
+    });
+  const unsaved = JSON.stringify(rows) !== JSON.stringify(data.criteria);
 
   return (
     <>
@@ -75,11 +90,8 @@ export default function Criteria() {
                   saved={data.criteria.filter((c) => !isScreened(c))}
                   onChange={(changed) => setRows([...rows.filter(isScreened), ...changed])} />
               </Section>
-              <Section title={<>Rule text used by the evaluator{prompt && ` · version ${prompt.version} (${prompt.status.toLowerCase()})`}</>}>
-                <p className="small muted">Only criteria marked "Scored per: Project/CV" and "AI + committee" are evaluated from the bids.</p>
-                <label className="sr-only" htmlFor="block">Rule text</label>
-                <textarea id="block" rows={16} value={block} onChange={(e) => setBlock(e.target.value)} />
-              </Section>
+              <RuleText prompt={prompt} text={block} onChange={setBlock} notice={notice}
+                onRebuild={rebuild} canRebuild={!unsaved} busy={busy} />
               <div><button className="btn" type="submit" disabled={busy}>Save changes</button></div>
             </form>
           </>

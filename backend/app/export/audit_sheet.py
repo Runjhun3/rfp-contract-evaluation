@@ -5,7 +5,8 @@
   and every job with why and by whom it was started.
 - Approved criteria: the criteria as they stood at each approval.
 - Committee marks: every mark entered, with who, when and why it changed.
-The per-firm sheets keep the decision logs on marks and eligibility."""
+The per-firm sheets keep the decision logs on marks and eligibility (what the committee
+found in a check's documents is the reason for its decision on that check, D-062)."""
 from app.export.sheet_style import BOLD, TITLE, bold_row, style
 
 AUDIT = "Audit log"

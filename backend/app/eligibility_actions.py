@@ -1,7 +1,7 @@
 """What the committee and the system do on eligibility screening: record a decision on
 a check, and queue checks of bids. The rules they follow are in app/eligibility.py."""
 from app.db import q_bids, q_eligibility, q_projects
-from app.eligibility import requirements
+from app.eligibility import document_flagged, requirements
 
 MIN_REASON = 10
 
@@ -20,6 +20,7 @@ def decide(cur, check_id: str, body: dict, user_id: str) -> str | None:
         return "Choose whether the bid meets the requirement."
     reason = str(body.get("reason") or "").strip()
     why = ("the AI was unsure" if check["result"] == "UNSURE"
+           else "a document check flagged its proof" if document_flagged(latest[0])
            else "you disagree with the AI" if decision != check["result"] else None)
     if why and len(reason) < MIN_REASON:
         return f"Give a reason of at least {MIN_REASON} characters: {why}."

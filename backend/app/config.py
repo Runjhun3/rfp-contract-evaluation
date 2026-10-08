@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     ocr_engine: str = "textract"         # textract | tesseract (local dev)
     ocr_min_chars: int = 50              # less text than this -> OCR
     ocr_min_image_ratio: float = 0.25    # image covers this much of the page -> OCR
+    min_evidence_dpi: int = 150          # a cited scan below this is flagged as hard to read
+    min_position_dpi: int = 90           # a scan's word positions are checked from (D-060)
+    forensic_flags: bool = False         # show forensic flags (on once calibrated, D-058)
 
     db_host: str = "localhost"
     db_port: int = 5432

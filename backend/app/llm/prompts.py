@@ -9,13 +9,13 @@ PROMPT_DIR = Path(__file__).resolve().parents[2] / "prompts"
 
 VERSIONS = {
     "system": "system_v2",
-    "item": "item_eval_v4",
+    "item": "item_eval_v5",
     "criterion": "criterion_eval_v1",
-    "label": "page_label_v4",
+    "label": "page_label_v5",
     "recheck": "item_recheck_v2",
     "count_rule": "item_count_rule_v1",
     "criteria": "criteria_extraction_v9",
-    "eligibility": "eligibility_check_v1",
+    "eligibility": "eligibility_check_v2",
 }
 
 _PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")

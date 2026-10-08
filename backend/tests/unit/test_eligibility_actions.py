@@ -66,3 +66,16 @@ def test_checks_are_queued_only_after_approval_and_only_with_requirements(monkey
     assert eligibility_actions.start(None, "t", "u") is None
     assert queued == [("s2", "Bid uploaded"), ("s1", "Check eligibility again"),
                       ("s2", "Check eligibility again")]
+
+
+def test_deciding_a_check_whose_proof_failed_a_document_check_needs_a_reason(monkeypatch):
+    flagged = dict(check("e1", "MET", check_id="k5"),
+                   verification=[{"fact": "document forensics", "value_matches": False}])
+    monkeypatch.setattr(eligibility_actions.q_eligibility, "get_check", lambda cur, cid: {
+        **flagged, "tender_id": "t", "submission_id": "s1"})
+    monkeypatch.setattr(eligibility_actions.q_eligibility, "current",
+                        lambda cur, t, s=None: [flagged])
+    monkeypatch.setattr(eligibility_actions.q_eligibility, "record_decision",
+                        lambda *a: None)
+    assert eligibility_actions.decide(None, "k5", {"decision": "MET"}, "u") == (
+        "Give a reason of at least 10 characters: a document check flagged its proof.")

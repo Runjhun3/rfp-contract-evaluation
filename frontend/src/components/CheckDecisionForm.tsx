@@ -11,12 +11,13 @@ type Props = { check: CheckDetail; onSaved: () => void };
 // append a reasoned override for a clear result.
 export default function CheckDecisionForm({ check, onSaved }: Props) {
   const last = check.decision;
-  const start: Choice | "" = last?.decision ?? (check.result === "UNSURE" ? "" : check.result);
+  const open = check.result === "UNSURE" || check.flagged;   // for the committee to decide
+  const start: Choice | "" = last?.decision ?? (open ? "" : (check.result as Choice));
   const [choice, setChoice] = useState<Choice | "">(start);
   const [reason, setReason] = useState(last?.reason ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const needsReason = check.result === "UNSURE" || (choice !== "" && choice !== check.result);
+  const needsReason = open || (choice !== "" && choice !== check.result);
   const options = { MET: "Meets the requirement", NOT_MET: "Does not meet it" };
 
   async function submit(e: FormEvent) {
@@ -39,7 +40,7 @@ export default function CheckDecisionForm({ check, onSaved }: Props) {
       <ErrorText error={error} />
       <fieldset className="row">
         <legend>
-          <strong>{check.result === "UNSURE" ? "Committee decision required" : "Change AI decision"}</strong>
+          <strong>{open ? "Committee decision required" : "Change AI decision"}</strong>
           {last && <span className="small muted"> · decided {word(check.stage, last.decision)} by {last.by}, {last.decided}</span>}
         </legend>
         {(["MET", "NOT_MET"] as const).map((v) => (
@@ -51,13 +52,15 @@ export default function CheckDecisionForm({ check, onSaved }: Props) {
       </fieldset>
       <label className="field">
         Reason (goes on the record){needsReason
-          ? (check.result === "UNSURE" ? " · needed, the AI was unsure" : " · needed, you disagree with the AI")
+          ? (check.result === "UNSURE" ? " · needed, the AI was unsure"
+            : check.flagged ? " · needed, a document check flagged its proof"
+            : " · needed, you disagree with the AI")
           : " · optional when confirming the AI"}
         <textarea rows={3} minLength={needsReason ? 10 : undefined} required={needsReason}
           value={reason} onChange={(e) => setReason(e.target.value)} />
       </label>
       <div className="row">
-        <button className="btn primary" type="submit" disabled={busy}>{check.result === "UNSURE" ? "Record decision" : "Save override"}</button>
+        <button className="btn primary" type="submit" disabled={busy}>{open ? "Record decision" : "Save override"}</button>
       </div>
     </form>
   );

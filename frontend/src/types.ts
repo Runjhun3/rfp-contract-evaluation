@@ -63,6 +63,8 @@ export interface Requirement {
 }
 export interface EligibilityCell {
   code: string; number: string; stage: ScreenStage; check_id: string | null; result: CheckResult | null; decision: "MET" | "NOT_MET" | null;
+  flagged: boolean; // its proof failed a document check: for the committee, as if unsure
+  effective: CheckResult | null; // what counts: the decision, else UNSURE if flagged, else the AI's
 }
 export interface EligibilityFirm {
   submission_id: string; name: string; legal_name: string; cells: EligibilityCell[];
@@ -77,6 +79,7 @@ export interface EligibilityPage extends Head {
 export interface CheckDetail {
   check_id: string; code: string; number: string; stage: ScreenStage; title: string; rfp_text: string;
   result: CheckResult; finding: string; checked: string; pages: number[]; first_page: number;
+  flagged: boolean; // its proof failed a document check
   proof: CheckView[]; // each quote, amount, date and test, as Python verified it
   decision: { decision: "MET" | "NOT_MET"; reason: string; by: string; decided: string } | null;
 }
@@ -124,8 +127,11 @@ export interface Verdict {
   item_limit: Marks; // the most an override can give this item (1 = counts, for a count-based criterion)
   decision: { action: "ACCEPT" | "OVERRIDE"; final_marks: Marks; reason: string } | null;
 }
+// A box on a page: x, y, w, h as fractions of the page from the top left.
+export interface Region { x: number; y: number; w: number; h: number }
 export interface CheckView {
   label: string; detail: string; quote: string | null; page: number | null; state: "problem" | "note" | "passed";
+  region?: Region; // a document check's finding: outlined on the bid page
 }
 export interface EvidencePage {
   score: Score; groups: ItemGroup[]; item: Verdict | null; checks: CheckView[];

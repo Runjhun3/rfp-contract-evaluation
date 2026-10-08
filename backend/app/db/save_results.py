@@ -68,9 +68,11 @@ def _save_checks(cur, run_dir: Path, item_ids: dict[str, str]) -> None:
     checks = [EvidenceCheck.model_validate(c) for c in read(run_dir / "evidence_checks.json")]
     cur.executemany(
         """insert into evidence_check (item_id, fact, pdf_page_no, quote, quote_found, match_score,
-             parsed_value, value_matches, note) values (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+             parsed_value, value_matches, note, region)
+           values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)""",
         [(item_ids[c.label], c.fact, c.pdf_page_no, c.quote, c.quote_found, c.match_score,
-          c.parsed_value, c.value_matches, c.note) for c in checks if c.label in item_ids])
+          c.parsed_value, c.value_matches, c.note, c.region and json.dumps(c.region))
+         for c in checks if c.label in item_ids])
 
 
 def _save_scores(cur, run_dir: Path, run_id: str, submission_id: str,

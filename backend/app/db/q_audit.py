@@ -3,7 +3,7 @@ and the history read back for the results page and the export's audit log.
 Every table written here is append-only."""
 import json
 
-from app.db.connection import all_rows
+from app.db.connection import all_rows, one_row
 
 
 def add_edit(cur, tender_id: str, row: dict, field: str, values: tuple, source: str,
@@ -66,3 +66,12 @@ def mark_history(cur, tender_id: str) -> list[dict]:
         join app_user u on u.user_id = h.entered_by
         where c.tender_id = %s
         order by h.entered_at, h.history_id""", (tender_id,))
+
+
+def latest_general(cur, tender_id: str) -> list[dict] | None:
+    """The RFP's general conditions from the latest extraction, as the AI returned them;
+    None when no extraction was recorded (projects read before migration 016)."""
+    row = one_row(cur, """select general from criteria_extraction where tender_id = %s
+                          order by extracted_at desc, extraction_id desc limit 1""",
+                  (tender_id,))
+    return row["general"] if row else None
