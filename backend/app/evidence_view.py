@@ -107,7 +107,8 @@ def _verdict(item: dict, score: dict, threshold: Decimal) -> dict:
             "item_limit": item_limit(score) if item_limit(score) is not None
             else score["max_marks"],                   # the most an override can give
             "decision": {"action": item["decision"], "final_marks": item["decided_marks"],
-                         "reason": item["decision_reason"]} if item["decision"] else None}
+                         "reason": item["decision_reason"], "by": item["decided_by"],
+                         "at": item["decided"]} if item["decision"] else None}
 
 
 def _title(item: dict) -> str:

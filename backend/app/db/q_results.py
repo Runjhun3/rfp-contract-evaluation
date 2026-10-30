@@ -41,12 +41,18 @@ def manual_marks(cur, criterion_ids: list[str]) -> dict[str, dict[str, object]]:
     return out
 
 
-def save_manual_mark(cur, submission_id: str, criterion_id: str, marks, user_id: str) -> None:
+def save_manual_mark(cur, submission_id: str, criterion_id: str, marks, reason: str,
+                     user_id: str) -> None:
+    """The current mark (manual_score), and the entry in its history (append-only)."""
     cur.execute("""insert into manual_score (submission_id, criterion_id, marks, entered_by)
                    values (%s, %s, %s, %s)
                    on conflict (submission_id, criterion_id) do update
                      set marks = excluded.marks, entered_by = excluded.entered_by,
                          entered_at = now()""", (submission_id, criterion_id, marks, user_id))
+    cur.execute("""insert into manual_score_history (submission_id, criterion_id, marks, reason,
+                     entered_by)
+                   values (%s, %s, %s, %s, %s)""",
+                (submission_id, criterion_id, marks, reason, user_id))
 
 
 def score_detail(cur, score_id: str) -> dict | None:
@@ -71,11 +77,13 @@ def items(cur, run_id: str, submission_id: str, criterion_id: str) -> list[dict]
                r.confidence, r.facts, r.evidence, r.suspicious_text,
                coalesce(g.mismatches, '{}') as copy_mismatches,
                d.action as decision, d.final_marks as decided_marks, d.reason as decision_reason,
-               fi.marks as final_marks, coalesce(fi.counted, false) as final_counted
+               d.full_name as decided_by, d.decided, fi.marks as final_marks, coalesce(fi.counted, false) as final_counted
         from bid_item i left join item_result r using (item_id)
         left join final_item fi on fi.item_id = i.item_id
         left join copy_group g on g.copy_group_id = i.copy_group_id
-        left join lateral (select x.action, x.final_marks, x.reason from review_decision x
+        left join lateral (select x.action, x.final_marks, x.reason, u.full_name,
+                                  to_char(x.decided_at, 'DD Mon YYYY, HH24:MI:SS') as decided
+                           from review_decision x join app_user u on u.user_id = x.reviewer
                            where x.item_id = i.item_id order by x.decided_at desc limit 1) d on true
         where i.run_id = %s and i.submission_id = %s and i.criterion_id = %s
         order by i.from_page""", (run_id, submission_id, criterion_id))

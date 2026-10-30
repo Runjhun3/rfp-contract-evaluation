@@ -5,7 +5,7 @@ import logging
 import time
 
 from app.config import Settings
-from app.db import q_runs
+from app.db import q_events, q_runs
 from app.db.connection import transaction
 from app.jobs import eligibility_job, handlers
 from app.llm.client import LlmClient
@@ -33,6 +33,8 @@ def run_once(settings: Settings, llm: LlmClient) -> bool:
         _mark_failed_stage(settings, job, error)
     with transaction(settings) as cur:
         q_runs.finish_job(cur, job["job_id"], error, job["attempts"], MAX_ATTEMPTS)
+        if error is not None:                   # every failed attempt stays on the trail
+            q_events.job_failed(cur, job, error, MAX_ATTEMPTS)
     return True
 
 

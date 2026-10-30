@@ -4,10 +4,9 @@ from starlette.routing import Route
 
 from app.db import q_results
 from app.db.connection import transaction
-from app.db.repo_setup import LOCAL_USER_ID
 from app.evidence_view import evidence_view
 from app.review import decide
-from app.web.auth import check_csrf
+from app.web.auth import check_csrf, current_user
 from app.web.common import fail, ok
 from app.web.page_image import page_png
 
@@ -28,7 +27,7 @@ async def record_decision(request):
     check_csrf(request)
     body = await request.json()
     with _db(request) as cur:
-        problem = decide(cur, str(request.path_params["score_id"]), body, LOCAL_USER_ID)
+        problem = decide(cur, str(request.path_params["score_id"]), body, current_user(request))
     if problem:
         return fail(problem, 404 if problem == "Score not found" else 400)
     return ok(None, "Decision recorded", 201)

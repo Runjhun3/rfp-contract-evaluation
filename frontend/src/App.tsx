@@ -2,8 +2,11 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import Criteria from "./pages/Criteria";
+import Decisions from "./pages/Decisions";
 import Eligibility from "./pages/Eligibility";
 import EligibilityCheck from "./pages/EligibilityCheck";
+import Activity from "./pages/Activity";
+import AuditTrail from "./pages/AuditTrail";
 import Evidence from "./pages/Evidence";
 import Login from "./pages/Login";
 import NewProject from "./pages/NewProject";
@@ -14,6 +17,7 @@ import Projects from "./pages/Projects";
 import Results from "./pages/Results";
 import RfpUpload from "./pages/RfpUpload";
 import RunProgress from "./pages/RunProgress";
+import Users from "./pages/Users";
 
 // One route per screen of the UI design. The same paths are the stepper's links.
 // Everything except /login needs a signed-in session (RequireAuth).
@@ -35,6 +39,10 @@ export default function App() {
           <Route path="runs/:runId" element={<RunProgress />} />
           <Route path="projects/:tenderId/results" element={<Results />} />
           <Route path="scores/:scoreId" element={<Evidence />} />
+          <Route path="projects/:tenderId/audit" element={<AuditTrail />} />
+          <Route path="projects/:tenderId/decisions" element={<Decisions />} />
+          <Route path="users" element={<Users />} />
+          <Route path="activity" element={<Activity />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Route>

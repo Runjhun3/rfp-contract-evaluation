@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { post } from "../api";
 import { word } from "../eligibility";
 import type { CheckDetail } from "../types";
+import { useUnsavedWarning } from "../useUnsaved";
 import { ErrorText } from "./Status";
 
 type Choice = "MET" | "NOT_MET";
@@ -16,6 +17,8 @@ export default function CheckDecisionForm({ check, onSaved }: Props) {
   const [reason, setReason] = useState(last?.reason ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [kept, setKept] = useState({ choice: start, reason });   // what is on the record
+  useUnsavedWarning(choice !== kept.choice || reason !== kept.reason);
   const needsReason = check.result === "UNSURE" || (choice !== "" && choice !== check.result);
   const options = { MET: "Meets the requirement", NOT_MET: "Does not meet it" };
 
@@ -26,6 +29,7 @@ export default function CheckDecisionForm({ check, onSaved }: Props) {
     setError(null);
     try {
       await post(`/api/v1/eligibility/${check.check_id}/decision`, { decision: choice, reason });
+      setKept({ choice, reason });
       onSaved();
     } catch (err) {
       setError((err as Error).message);

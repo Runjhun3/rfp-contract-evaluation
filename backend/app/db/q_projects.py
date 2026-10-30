@@ -128,22 +128,3 @@ def latest_prompt(cur, tender_id: str) -> dict | None:
     return one_row(cur, """select prompt_id::text, version, criteria_block, status
                            from evaluation_prompt where tender_id = %s
                            order by version desc limit 1""", (tender_id,))
-
-
-def save_draft_block(cur, tender_id: str, block: str) -> None:
-    latest = latest_prompt(cur, tender_id)
-    if latest and latest["status"] == "DRAFT":
-        cur.execute("update evaluation_prompt set criteria_block = %s where prompt_id = %s",
-                    (block, latest["prompt_id"]))
-        return
-    cur.execute("""insert into evaluation_prompt (tender_id, version, criteria_block, status)
-                   select %s, coalesce(max(version), 0) + 1, %s, 'DRAFT'
-                   from evaluation_prompt where tender_id = %s""", (tender_id, block, tender_id))
-
-
-def approve_prompt(cur, tender_id: str, user_id: str) -> None:
-    cur.execute("""update evaluation_prompt set status = 'APPROVED', approved_by = %s,
-                     approved_at = now()
-                   where prompt_id = (select prompt_id from evaluation_prompt where tender_id = %s
-                                      order by version desc limit 1)""", (user_id, tender_id))
-    set_status(cur, tender_id, "PROMPT_APPROVED")

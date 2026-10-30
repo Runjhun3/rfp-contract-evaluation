@@ -14,15 +14,19 @@ def start_run(cur, tender_id: str, prompt_id: str, model: str, user_id: str,
     for submission_id in submission_ids:
         cur.execute("insert into run_submission (run_id, submission_id) values (%s, %s)",
                     (run["run_id"], submission_id))
-        enqueue(cur, tender_id, "EVALUATE_SUBMISSION", submission_id, run["run_id"])
+        enqueue(cur, tender_id, "EVALUATE_SUBMISSION", submission_id,
+                (user_id, "Evaluation started"), run["run_id"])
     cur.execute("update tender set status = 'EVALUATING' where tender_id = %s", (tender_id,))
     return run["run_id"]
 
 
-def enqueue(cur, tender_id: str, kind: str, ref_id: str, run_id: str | None = None) -> None:
-    cur.execute("""insert into job (tender_id, kind, ref_id, run_id) values (%s, %s, %s, %s)
+def enqueue(cur, tender_id: str, kind: str, ref_id: str, origin: tuple[str, str],
+            run_id: str | None = None) -> None:
+    """origin: (who, which action) queued the job, kept on it for the audit trail."""
+    cur.execute("""insert into job (tender_id, kind, ref_id, run_id, created_by, cause)
+                   values (%s, %s, %s, %s, %s, %s)
                    on conflict (kind, ref_id, run_id) do nothing""",
-                (tender_id, kind, ref_id, run_id))
+                (tender_id, kind, ref_id, run_id, *origin))
 
 
 def claim_job(cur) -> dict | None:

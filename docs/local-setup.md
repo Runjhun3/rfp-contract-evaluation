@@ -55,9 +55,10 @@ npm test                        # UI unit tests (vitest); `npm run typecheck` fo
 While changing the UI, run `npm run dev` instead of `npm run build` and open
 http://localhost:5173: Vite reloads on every save and proxies `/api` to the
 Python app on port 8000 (keep `python run.py web` running).
-Sign in with `APP_USERNAME` / `APP_PASSWORD` from `.env` (decisions.md D-042).
-Set `SESSION_SECRET` too, or every restart signs you out. Every action is still
-recorded as "Local user".
+Sign in with `APP_USERNAME` / `APP_PASSWORD` from `.env` (decisions.md D-042), the
+built-in administrator, and create named accounts on the Users page (D-056).
+Set `SESSION_SECRET` too, or every restart signs you out. Every action is recorded
+against the signed-in account and shows on the project's Audit trail page (D-057).
 
 ## Environment variables
 | Name | Example | Notes |

@@ -14,7 +14,7 @@ VERSIONS = {
     "label": "page_label_v4",
     "recheck": "item_recheck_v2",
     "count_rule": "item_count_rule_v1",
-    "criteria": "criteria_extraction_v9",
+    "criteria": "criteria_extraction_v10",
     "eligibility": "eligibility_check_v1",
 }
 

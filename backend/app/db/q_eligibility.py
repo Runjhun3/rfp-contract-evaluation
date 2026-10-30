@@ -94,17 +94,24 @@ def decisions(cur, tender_id: str) -> list[dict]:
 
 
 def jobs(cur, tender_id: str) -> dict[str, dict]:
-    """Each submission's latest eligibility job: {submission_id: {status, error}}."""
-    rows = all_rows(cur, """select distinct on (ref_id) ref_id::text, status, last_error
-                            from job where tender_id = %s and kind = %s
-                            order by ref_id, created_at desc""", (tender_id, JOB))
-    return {r["ref_id"]: {"status": r["status"], "error": r["last_error"]} for r in rows}
+    """Each submission's latest eligibility job:
+    {submission_id: {status, error, started, by, cause}}."""
+    rows = all_rows(cur, """select distinct on (j.ref_id) j.ref_id::text, j.status,
+                                   j.last_error, j.cause, u.full_name,
+                                   to_char(j.created_at, 'DD Mon YYYY HH24:MI') as started
+                            from job j left join app_user u on u.user_id = j.created_by
+                            where j.tender_id = %s and j.kind = %s
+                            order by j.ref_id, j.created_at desc""", (tender_id, JOB))
+    return {r["ref_id"]: {"status": r["status"], "error": r["last_error"],
+                          "started": r["started"], "by": r["full_name"], "cause": r["cause"]}
+            for r in rows}
 
 
-def enqueue_check(cur, tender_id: str, submission_id: str) -> None:
-    """Queue a check of the submission's latest bid file, unless one is already queued."""
-    cur.execute("""insert into job (tender_id, kind, ref_id)
-                   select %s, %s, %s where not exists (
+def enqueue_check(cur, tender_id: str, submission_id: str, origin: tuple[str, str]) -> None:
+    """Queue a check of the submission's latest bid file, unless one is already queued.
+    origin: (who, which action) queued it."""
+    cur.execute("""insert into job (tender_id, kind, ref_id, created_by, cause)
+                   select %s, %s, %s, %s, %s where not exists (
                      select 1 from job where kind = %s and ref_id = %s
                        and status = 'PENDING')""",
-                (tender_id, JOB, submission_id, JOB, submission_id))
+                (tender_id, JOB, submission_id, *origin, JOB, submission_id))

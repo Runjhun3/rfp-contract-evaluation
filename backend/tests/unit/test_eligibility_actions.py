@@ -57,9 +57,12 @@ def test_checks_are_queued_only_after_approval_and_only_with_requirements(monkey
     monkeypatch.setattr(eligibility_actions.q_bids, "ready_submissions",
                         lambda cur, t: [{"submission_id": "s1"}, {"submission_id": "s2"}])
     monkeypatch.setattr(eligibility_actions.q_eligibility, "enqueue_check",
-                        lambda cur, t, s: queued.append(s))
-    assert eligibility_actions.queue_checks(None, "t") == 0
-    assert eligibility_actions.start(None, "t") == "Approve the criteria first."
+                        lambda cur, t, s, origin: queued.append((s, origin[1])))
+    upload = ("u", "Bid uploaded")
+    assert eligibility_actions.queue_checks(None, "t", upload) == 0
+    assert eligibility_actions.start(None, "t", "u") == "Approve the criteria first."
     prompt["status"] = "APPROVED"
-    assert eligibility_actions.queue_checks(None, "t", ["s2"]) == 1 and queued == ["s2"]
-    assert eligibility_actions.start(None, "t") is None and queued == ["s2", "s1", "s2"]
+    assert eligibility_actions.queue_checks(None, "t", upload, ["s2"]) == 1
+    assert eligibility_actions.start(None, "t", "u") is None
+    assert queued == [("s2", "Bid uploaded"), ("s1", "Check eligibility again"),
+                      ("s2", "Check eligibility again")]

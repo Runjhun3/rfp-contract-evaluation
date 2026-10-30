@@ -1,4 +1,5 @@
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import BackLink from "../components/BackLink";
 import BidPage from "../components/BidPage";
 import CheckDecisionForm from "../components/CheckDecisionForm";
 import CheckList from "../components/CheckList";
@@ -33,9 +34,12 @@ export default function EligibilityCheck() {
   return (
     <>
       <div className="page">
-        <nav className="crumbs" aria-label="Breadcrumb">
-          <Link to="/projects">Projects</Link> / <Link to={`/projects/${project.tender_id}/eligibility`}>{project.name} · eligibility</Link> / {firm.name}
-        </nav>
+        <div className="back-row">
+          <BackLink to={`/projects/${project.tender_id}/eligibility`} label="eligibility" />
+          <nav className="crumbs" aria-label="Breadcrumb">
+            <Link to="/projects">Projects</Link> / <Link to={`/projects/${project.tender_id}/eligibility`}>{project.name} · eligibility</Link> / {firm.name}
+          </nav>
+        </div>
         <div className="evidence-head">
           <div>
             <span className="small muted">{firm.legal_name}</span>

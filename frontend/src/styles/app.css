@@ -23,6 +23,9 @@ a { color: var(--accent); } a:hover { color: var(--accent-hover); }
 /* Layout */
 .page { padding: 28px 80px 48px; display: flex; flex-direction: column; gap: 22px; }
 .crumbs { font-size: 14px; color: var(--muted); }
+/* "← Back to …" beside the breadcrumb, on pages that are not a project step */
+.back-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.btn.back { color: var(--accent); }
 h1 { margin: 0; font: 600 32px/1.2 var(--serif); letter-spacing: -0.3px; }
 h1.project { font-size: 28px; }
 h2 { margin: 0; font-size: 18px; font-weight: 700; }
@@ -56,6 +59,7 @@ h2 { margin: 0; font-size: 18px; font-weight: 700; }
 
 /* Forms */
 label.field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; }
+label.field.reason { max-width: 560px; margin-top: 12px; }
 input[type=text], input[type=date], input[type=search],
 input[type=number], select, textarea {
   min-height: 44px; padding: 8px 12px; border: 1px solid var(--field); border-radius: 8px;
@@ -131,6 +135,55 @@ a.cell:hover { background: var(--accent-tint); }
 a.cell.review { background: var(--amber-bg); color: var(--amber-ink); font-weight: 700; }
 a.cell.pending { background: var(--amber-bg); color: var(--amber-ink); }
 a.cell.decided { text-decoration: underline dotted; }
+/* The committee's decisions: green = the AI's marks (or finding) kept, red = overridden. */
+.key { padding: 0 6px; border-radius: 4px; font-weight: 600; }
+.key.accepted { background: #E3F1E6; color: #1E5A2B; }
+.key.overridden { background: #F8E3E1; color: #8A2A20; }
+.decided-by { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+.decided-by.accepted { color: #1E5A2B; }
+.decided-by.overridden { color: #8A2A20; }
+.results-actions { margin-top: 16px; }
+/* Activity log filters: person, from, to, and the CSV download at the far right */
+.filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.filters label.field { font-size: 13px; }
+.filters select, .filters input[type=date] { min-height: 36px; padding: 4px 8px; font-size: 14px; }
+.filters .download { margin-left: auto; }
+/* Evidence: how many counted items are decided, and the next one to decide */
+.decide-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.decide-bar progress { flex: 1 1 120px; max-width: 220px; }
+.accepted-text { color: #1E5A2B; font-weight: 600; }
+/* Results: header stays in view, rank and firm stay at the left, the rest scrolls
+   sideways inside the box. Outer border on the cells, as in the eligibility grid. */
+.results-scroll { overflow: auto; max-height: calc(100vh - 220px); border-radius: var(--radius); }
+.results-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.table.results { width: max-content; min-width: 100%; overflow: visible; border: 0; }
+.table.results thead th { position: sticky; top: 0; z-index: 2; border-top: 1px solid var(--line); }
+.table.results tbody tr:last-child td { border-bottom: 1px solid var(--line); }
+.table.results .col-rank, .table.results .col-name, .table.results .col-total { position: sticky; z-index: 1;
+  background: var(--card); }
+.table.results thead .col-rank, .table.results thead .col-name, .table.results thead .col-total { z-index: 3;
+  background: var(--head); }
+.table.results .col-total { right: 0; min-width: 84px; border-left: 1px solid var(--line); }
+.table.results .col-rank { left: 0; width: 72px; min-width: 72px; border-left: 1px solid var(--line); }
+.table.results .col-name { left: 72px; min-width: 180px; border-right: 1px solid var(--line); }
+.table.results tr > :last-child { border-right: 1px solid var(--line); }
+.table.results thead tr th:first-child { border-top-left-radius: var(--radius); }
+.table.results thead tr th:last-child { border-top-right-radius: var(--radius); }
+.table.results tbody tr:last-child td:first-child { border-bottom-left-radius: var(--radius); }
+.table.results tbody tr:last-child td:last-child { border-bottom-right-radius: var(--radius); }
+.table.results tr.out .col-rank, .table.results tr.out .col-name, .table.results tr.out .col-total {
+  background: var(--line-soft); }
+/* Numbered pages under a long list */
+.pager .pages { gap: 6px; flex-wrap: wrap; }
+.pager .btn.small { min-width: 36px; justify-content: center; padding: 0 10px; }
+.pager .btn.current { background: var(--accent); border-color: var(--accent); color: #FFFFFF; cursor: default; }
+.pager .btn[aria-disabled="true"] { opacity: 0.45; cursor: default; }
+/* Decision log: the same column widths in every firm's table. */
+.table.decisions { table-layout: fixed; }
+.table.decisions th:nth-child(1) { width: 190px; } .table.decisions th:nth-child(2) { width: 140px; }
+.table.decisions th:nth-child(4) { width: 170px; } .table.decisions th:nth-child(5) { width: 80px; }
+.table.decisions th:nth-child(6) { width: 90px; } .table.decisions th:nth-child(8) { width: 150px; }
+.table.decisions td { overflow-wrap: anywhere; }
 .total { font-weight: 700; font-size: 17px; }
 
 /* Evidence */
@@ -161,11 +214,33 @@ h1.criterion { font-size: 22px; line-height: 1.3; }
 .chk q { display: block; margin: 4px 0; color: var(--ink-2); font-family: var(--serif); }
 details.passed > summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 6px 0; }
 details.passed > .chk { margin-top: 8px; }
+/* Bid page viewer: the page-number box between ‹ and ›, without spinner arrows. */
+.page-go { display: contents; }
+input.page-no { width: 64px; min-height: 36px; padding: 4px 8px; text-align: center;
+  -moz-appearance: textfield; appearance: textfield; }
+input.page-no::-webkit-outer-spin-button,
+input.page-no::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .pageimg { width: 100%; background: #FFFFFF; box-shadow: 0 1px 3px rgba(22, 32, 42, .18); border-radius: 4px; }
 footer.site { padding: 24px 80px; font-size: 13px; color: var(--muted); }
 
+/* The one "saved" notice, top right under the top bar */
+.saved-notice { position: fixed; top: 68px; right: 24px; z-index: 50; pointer-events: none; }
+.saved-notice > span { display: inline-block; padding: 10px 16px; border-radius: 10px; background: #1E5A2B;
+  color: #FFFFFF; font-weight: 600; font-size: 14px; box-shadow: 0 4px 14px rgba(22, 32, 42, .2); }
+
 /* Top bar: signed-in user and sign out */
 .topbar .who { color: #C9CED4; }
+.topbar-link { color: var(--paper); font-weight: 600; text-decoration: none; }
+.topbar-link:hover { color: #FFFFFF; text-decoration: underline; }
+
+/* Audit trail and accounts */
+.nowrap { white-space: nowrap; }
+.row.wrap { flex-wrap: wrap; gap: 8px; }
+a.chip { text-decoration: none; }
+a.chip:hover { color: var(--accent); background: var(--accent-soft); }
+.table.audit td { vertical-align: top; }
+.audit-text { max-width: 520px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.audit-text.long { max-height: 160px; overflow: auto; }
 .btn.ghost { background: transparent; border-color: #3A4856; color: var(--paper); }
 .btn.ghost:hover { background: #2E3B48; }
 

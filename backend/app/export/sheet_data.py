@@ -1,10 +1,10 @@
 """Everything the committee sheet shows, gathered once: the project, its results
 (each participant's latest finished evaluation, ranked), the eligibility requirements
-and the criteria in order, and for each participant its eligibility checks, its items
-and every committee decision.
+and the criteria in order, for each participant its eligibility checks, its items
+and every committee decision, and the audit trail (audit_sheet.py).
 """
 from app.criteria import SCREENED, group_codes
-from app.db import q_eligibility, q_projects, q_results
+from app.db import q_audit, q_eligibility, q_events, q_projects, q_prompts, q_results
 from app.eligibility import requirements
 from app.results import project_results
 
@@ -35,6 +35,10 @@ def sheet_data(cur, tender_id: str) -> dict | None:
              for r in results["rows"]]                          # in rank order
     return {"project": project, "results": results, "firms": firms,
             "requirements": requirements(cur, tender_id),
+            "history": q_audit.criteria_history(cur, tender_id),
+            "mark_history": q_audit.mark_history(cur, tender_id),
+            "events": q_events.project_history(cur, tender_id),
+            "approvals": q_prompts.approvals(cur, tender_id),
             "criteria": [c for c in q_projects.criteria(cur, tender_id)
                          if c["stage"] not in SCREENED]}
 

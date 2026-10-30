@@ -27,24 +27,27 @@ def decide(cur, check_id: str, body: dict, user_id: str) -> str | None:
     return None
 
 
-def start(cur, tender_id: str) -> str | None:
+def start(cur, tender_id: str, user_id: str) -> str | None:
     """"Check eligibility again": queue every bid. None when queued, else why not."""
     prompt = q_projects.latest_prompt(cur, tender_id)
     if not prompt or prompt["status"] != "APPROVED":
         return "Approve the criteria first."
     if not requirements(cur, tender_id):
         return "This project has no eligibility criteria."
-    return None if queue_checks(cur, tender_id) else "Upload at least one bid."
+    queued = queue_checks(cur, tender_id, (user_id, "Check eligibility again"))
+    return None if queued else "Upload at least one bid."
 
 
-def queue_checks(cur, tender_id: str, submission_ids: list[str] | None = None) -> int:
+def queue_checks(cur, tender_id: str, origin: tuple[str, str],
+                 submission_ids: list[str] | None = None) -> int:
     """Queue checks for the given bids (default: every bid) once the criteria are
-    approved and the tender has eligibility requirements. Returns how many."""
+    approved and the tender has eligibility requirements. origin: (who, which action)
+    queued them, kept on the job. Returns how many."""
     prompt = q_projects.latest_prompt(cur, tender_id)
     if not prompt or prompt["status"] != "APPROVED" or not requirements(cur, tender_id):
         return 0
     ready = [s["submission_id"] for s in q_bids.ready_submissions(cur, tender_id)]
     chosen = [s for s in ready if submission_ids is None or s in submission_ids]
     for submission_id in chosen:
-        q_eligibility.enqueue_check(cur, tender_id, submission_id)
+        q_eligibility.enqueue_check(cur, tender_id, submission_id, origin)
     return len(chosen)
