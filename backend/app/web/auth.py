@@ -1,15 +1,21 @@
-"""Sign-in: one account from .env (APP_USERNAME / APP_PASSWORD; decisions.md D-042).
+"""Sign-in (decisions.md D-042, D-056): the built-in administrator from .env
+(APP_USERNAME / APP_PASSWORD) and named accounts an administrator creates (app/users.py).
 
 Every /api/ call needs a signed-in session except the ones in PUBLIC; RequireLogin
-answers 401 otherwise. Every write (POST) must also carry the session's CSRF token
-in the X-CSRF-Token header, so another site cannot act from the user's browser.
-Actions are still recorded against the one built-in user (migration 002_local_user).
+answers 401 otherwise, and also once a named account is switched off. Every write (POST)
+must also carry the session's CSRF token in the X-CSRF-Token header, so another site
+cannot act from the user's browser. Actions are recorded against the signed-in
+account's app_user row (current_user).
 """
 import hmac
 import secrets
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+
+from app.db import q_users
+from app.db.connection import transaction
+from app.db.repo_setup import LOCAL_USER_ID
 
 CSRF_HEADER = "x-csrf-token"
 PUBLIC = {"/api/v1/session", "/api/v1/login"}
@@ -29,6 +35,30 @@ def check_csrf(request: Request) -> None:
     sent = request.headers.get(CSRF_HEADER, "")
     if not expected or not hmac.compare_digest(sent, expected):
         raise Forbidden()
+
+
+def current_user(request: Request) -> str:
+    """Who is acting: the signed-in account's user id. A session signed in before
+    accounts were recorded falls back to the built-in local user."""
+    return request.session.get("user_id") or LOCAL_USER_ID
+
+
+def is_admin(request: Request) -> bool:
+    """The .env account is an administrator; a named account's role is read on each call."""
+    return request.session.get("role", "ADMIN") == "ADMIN"
+
+
+def _still_allowed(settings, session: dict) -> bool:
+    """A named account is signed out on its next call once it is switched off, and its
+    role is read afresh. The .env account is checked at sign-in only."""
+    if not session.get("named"):
+        return True
+    with transaction(settings) as cur:
+        account = q_users.get(cur, session.get("user_id", ""))
+    if account is None or not account["is_active"]:
+        return False
+    session["role"] = account["role"]
+    return True
 
 
 def credentials_ok(username: str, password: str, want_user: str, want_password: str) -> bool:
@@ -51,8 +81,11 @@ class RequireLogin:
         self.app = app
 
     async def __call__(self, scope, receive, send):
+        session = scope.get("session", {})
         if (scope["type"] == "http" and needs_login(scope["path"])
-                and not scope.get("session", {}).get("user")):
+                and not (session.get("user")
+                         and _still_allowed(scope["app"].state.settings, session))):
+            session.clear()
             reply = JSONResponse({"data": None, "message": "Please sign in."}, status_code=401)
             await reply(scope, receive, send)
             return

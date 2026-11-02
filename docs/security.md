@@ -44,11 +44,14 @@ Bids are commercially confidential, and CVs contain personal data (DPDP Act
 - npm packages are code we run: keep the list short, commit
   `package-lock.json`, run `npm audit` before each release.
 
-## Access (one sign-in account)
-One account from `.env` (`APP_USERNAME` / `APP_PASSWORD`; decisions.md D-042).
-Every API call except `/api/v1/session` and `/api/v1/login` needs a signed-in
-session (401 otherwise). The password lives only in `.env` / the ENV_FILE
-secret, never in `.env.example`, git or chat; change it by editing `.env` and
-restarting. Everyone shares the account and actions are recorded as "Local
-user", so there is no per-person audit yet. Keep the security group limited to
-the committee's IPs until there is TLS and named accounts.
+## Access (accounts)
+The built-in administrator comes from `.env` (`APP_USERNAME` / `APP_PASSWORD`;
+decisions.md D-042). Its password lives only in `.env` / the ENV_FILE secret, never
+in `.env.example`, git or chat; change it by editing `.env` and restarting. Use it to
+create a named account for each person on the Users page (D-056) and keep it for
+emergencies. Named passwords are at least 12 characters and stored as salted scrypt
+hashes; a switched-off account is signed out on its next call. Every API call except
+`/api/v1/session` and `/api/v1/login` needs a signed-in session (401 otherwise);
+`/api/v1/users` needs an administrator (403). Actions are recorded against each
+account's own `app_user` row, so the audit trail names the person. Keep the security
+group limited to the committee's IPs until there is TLS.

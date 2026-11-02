@@ -77,7 +77,17 @@ def firm(sub: dict, reqs: list[dict], checks: list[dict], job: dict | None) -> d
             "label": label, "checking": checking,
             "included": sub["included"],
             "open": sum(1 for c in cells if c["check_id"] and _effective(c) == "UNSURE"),
-            "error": job["error"] if job and status == "failed" else None}
+            "error": job["error"] if job and status == "failed" else None,
+            "job_note": _job_note(job)}
+
+
+def _job_note(job: dict | None) -> str | None:
+    """When the firm's latest check was started, by whom and why."""
+    if not job or not job.get("started"):
+        return None
+    who = f" by {job['by']}" if job.get("by") else ""
+    why = f" ({job['cause'].lower()})" if job.get("cause") else ""
+    return f"Check started {job['started']}{who}{why}"
 
 
 def _cell(req: dict, check: dict | None) -> dict:

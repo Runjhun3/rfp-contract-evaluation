@@ -27,7 +27,8 @@ class ExtractedCriterion(BaseModel):
     max_marks: str | None = None
     max_items: int | None = None
     kind: str | None = None
-    item_marks: list[str] = Field(default_factory=list)
+    item_marks: list[str] = Field(default_factory=list)          # one of these applies
+    item_mark_parts: list[str] = Field(default_factory=list)     # these add up (v10)
     count_bands: list[dict] = Field(default_factory=list)   # {"min", "max", "marks"}
     proof: str | None = None       # eligibility: the documents the RFP asks for as proof
     rfp_no: str | None = None      # screened rows: the number the RFP prints ("3", "B")
@@ -89,6 +90,11 @@ def decimal_or_none(value: str | None) -> Decimal | None:
         return None
 
 
+# The rule text's general conditions paragraph: this line, then one line per condition,
+# - "text" [RFP p. N] (app/rule_text.py reads it back).
+GENERAL_HEAD = "GENERAL CONDITIONS (apply to every criterion below)"
+
+
 def build_block(rows: list[dict], general: list[GeneralCondition] | None = None) -> str:
     """Draft rule text for the prompt: the RFP's general conditions, then every
     criterion with marks the LLM scores (per project, per CV or on the whole bid).
@@ -99,7 +105,7 @@ def build_block(rows: list[dict], general: list[GeneralCondition] | None = None)
     parts = ["Apply each criterion exactly as the RFP text says. "
              "The plain-words line only explains it."]
     if general:
-        parts.append("GENERAL CONDITIONS (apply to every criterion below)\n" + "\n".join(
+        parts.append(GENERAL_HEAD + "\n" + "\n".join(
             f"- \"{g.text}\"" + (f" [RFP p. {g.rfp_page}]" if g.rfp_page else "")
             for g in general))
     for c in rows:

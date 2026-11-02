@@ -2,10 +2,14 @@
    left out of evaluation. Tokens come from app.css. */
 .chip.green { background: #E3F1E6; color: #1E5A2B; }
 .chip.red { background: #F8E3E1; color: #8A2A20; }
-/* The table keeps its own rounded border; the scrollbar sits below it, outside. */
+/* The scrollbar sits below the table, outside. The table's own border scrolls away with
+   it, so the outer border is drawn on the cells instead: the sticky firm and status
+   columns carry the left and right edges (and the rounded corners) and stay in view. */
 .grid-scroll { overflow-x: auto; max-width: 100%; padding-bottom: 8px; }
 .grid-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.table.grid { width: max-content; min-width: 100%; overflow: visible; }
+.table.grid { width: max-content; min-width: 100%; overflow: visible; border: 0; }
+.table.grid thead th { border-top: 1px solid var(--line); }
+.table.grid tbody tr:last-child td { border-bottom: 1px solid var(--line); }
 .table.grid td.center { text-align: center; }
 .table.grid th.req { width: 120px; min-width: 120px; max-width: 120px; vertical-align: top;
   text-align: center; text-transform: none; letter-spacing: 0; padding: 10px 8px; }
@@ -16,8 +20,10 @@
   background: var(--card); }
 .table.grid th.col-firm, .table.grid th.col-status { background: var(--head);
   vertical-align: top; }
-.table.grid .col-firm { left: 0; min-width: 140px; border-right: 1px solid var(--line); }
-.table.grid .col-status { right: 0; min-width: 190px; border-left: 1px solid var(--line); }
+.table.grid .col-firm { left: 0; min-width: 140px; border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line); }
+.table.grid .col-status { right: 0; min-width: 190px; border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line); }
 .warn-text { color: var(--amber-ink); font-weight: 600; }
 .table.grid thead tr:first-child th:first-child { border-top-left-radius: var(--radius); }
 .table.grid thead tr:first-child th:last-child { border-top-right-radius: var(--radius); }

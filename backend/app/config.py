@@ -46,9 +46,13 @@ class Settings(BaseSettings):
     amount_tolerance: Decimal = Decimal("0.01")
 
     def db_conninfo(self) -> str:
-        return (f"host={self.db_host} port={self.db_port} dbname={self.db_name} "
-                f"user={self.db_user} password={self.db_password} "
-                f"options='-c TimeZone={TIMEZONE}'")
+        """Each value quoted by psycopg, so an empty password or one with spaces or
+        quotes cannot spill into the next option."""
+        from psycopg.conninfo import make_conninfo
+
+        return make_conninfo(host=self.db_host, port=self.db_port, dbname=self.db_name,
+                             user=self.db_user, password=self.db_password,
+                             options=f"-c TimeZone={TIMEZONE}")
 
 
 @lru_cache

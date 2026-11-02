@@ -5,8 +5,7 @@ from app import eligibility
 from app.criteria import missing_max_marks
 from app.db import q_projects, q_runs
 from app.db.connection import transaction
-from app.db.repo_setup import LOCAL_USER_ID
-from app.web.auth import check_csrf
+from app.web.auth import check_csrf, current_user
 from app.web.common import fail, ok, stepper
 
 STAGES = ["READING", "OCR", "LABELLING", "ITEMS", "CHECKS", "SCORING", "DONE"]
@@ -38,7 +37,7 @@ async def start_run(request):
         if problem:
             return fail(problem, 409)
         run_id = q_runs.start_run(cur, tender_id, prompt["prompt_id"], settings.claude_model,
-                                  LOCAL_USER_ID, ready)
+                                  current_user(request), ready)
     return ok({"run_id": run_id}, "Evaluation started", 201)
 
 

@@ -6,8 +6,7 @@ from starlette.routing import Route
 from app import files, removal
 from app.db import q_bids, q_projects, q_runs
 from app.db.connection import transaction
-from app.db.repo_setup import LOCAL_USER_ID
-from app.web.auth import check_csrf
+from app.web.auth import check_csrf, current_user
 from app.web.common import BadUpload, fail, ok, read_pdf_upload, stepper
 
 LANDING = {"DRAFT": "rfp", "RFP_UPLOADED": "criteria", "CRITERIA_READY": "criteria",
@@ -38,7 +37,8 @@ async def create_project(request):
         return fail("Enter a project name.")
     with _db(request) as cur:
         tender_id = q_projects.create_project(cur, values["name"], values["gem"],
-                                              values["department"], values["due"], LOCAL_USER_ID)
+                                              values["department"], values["due"],
+                                              current_user(request))
     return ok({"tender_id": tender_id}, "Project created", 201)
 
 
@@ -92,8 +92,9 @@ async def upload_rfp(request):
     key = f"tenders/{tender_id}/rfp/{sha}.pdf"
     files.put(request.app.state.settings, key, data)
     with _db(request) as cur:
-        doc_id = q_projects.add_rfp(cur, tender_id, name, key, sha, pages, LOCAL_USER_ID)
-        q_runs.enqueue(cur, tender_id, "EXTRACT_CRITERIA", doc_id)
+        user_id = current_user(request)
+        doc_id = q_projects.add_rfp(cur, tender_id, name, key, sha, pages, user_id)
+        q_runs.enqueue(cur, tender_id, "EXTRACT_CRITERIA", doc_id, (user_id, "RFP uploaded"))
         q_projects.set_status(cur, tender_id, "RFP_UPLOADED")
     return ok({"doc_id": doc_id}, "RFP uploaded; reading criteria", 201)
 
@@ -101,7 +102,8 @@ async def upload_rfp(request):
 async def delete_project(request):
     check_csrf(request)
     with _db(request) as cur:
-        problem = removal.delete_project(cur, str(request.path_params["tender_id"]), LOCAL_USER_ID)
+        problem = removal.delete_project(cur, str(request.path_params["tender_id"]),
+                                         current_user(request))
     if problem:
         return fail(problem, 404 if problem == "Project not found" else 409)
     return ok(None, "Project deleted")

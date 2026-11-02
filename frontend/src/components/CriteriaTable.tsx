@@ -83,7 +83,8 @@ export default function CriteriaTable({ rows, saved, onChange }: Props) {
                   </td>
                   <td>
                     <label className="sr-only" htmlFor={`a${i}`}>Allowed marks per item</label>
-                    <input id={`a${i}`} type="text" value={c.allowed ?? ""} placeholder="e.g. 1, 1.5, 2" onChange={edit(i, "allowed")} />
+                    <input id={`a${i}`} type="text" value={c.allowed ?? ""} placeholder="e.g. 3, 4, 7" onChange={edit(i, "allowed")}
+                      title="Every mark one item can earn. For 4 marks + 3 marks, list 3, 4, 7; for slabs, list each slab." />
                   </td>
                   <td>
                     <label className="sr-only" htmlFor={`s${i}`}>Scored by</label>

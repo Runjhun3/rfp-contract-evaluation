@@ -2,9 +2,12 @@
 // Writes send the session's CSRF token in X-CSRF-Token; on a 403 the token is
 // fetched again once (the server makes a new session key when it restarts).
 // A 401 means the session is not signed in: SIGNED_OUT is dispatched on window
-// so RequireAuth can send the user to the sign-in page.
+// so RequireAuth can send the user to the sign-in page. A successful write shows the
+// server's message (e.g. "Decision recorded") as the one "saved" notice (notice.ts).
+import { notify } from "./notice";
 
 export const SIGNED_OUT = "bidlens:signed-out";
+const QUIET = ["/api/v1/login", "/api/v1/logout"]; // signing in or out is not "saving"
 
 export class ApiError extends Error {
   readonly status: number;
@@ -15,7 +18,8 @@ export class ApiError extends Error {
   }
 }
 
-export interface Session { csrf: string; user: string | null }
+// role: "ADMIN" (may manage accounts) or "COMMITTEE"; null when nobody is signed in.
+export interface Session { csrf: string; user: string | null; role: string | null }
 
 let csrf: string | null = null;
 
@@ -42,6 +46,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
     window.dispatchEvent(new Event(SIGNED_OUT));
   }
   if (!res.ok) throw new ApiError(reply.message || "Something went wrong.", res.status);
+  if (method !== "GET" && !QUIET.includes(path) && reply.message) notify(reply.message);
   return reply.data as T;
 }
 
@@ -82,9 +87,9 @@ export async function session(): Promise<Session> {
 
 // The server starts a new session on sign-in, with a new CSRF token.
 export async function signIn(username: string, password: string): Promise<string> {
-  const s = await post<{ csrf: string; user: string }>("/api/v1/login", { username, password });
+  const s = await post<Session>("/api/v1/login", { username, password });
   csrf = s.csrf;
-  return s.user;
+  return s.user ?? username;
 }
 
 export async function signOut(): Promise<void> {

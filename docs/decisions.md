@@ -3,6 +3,153 @@
 Newest first. One entry per decision: context, decision, consequence.
 Never delete an entry. Add a new one that supersedes it.
 
+## D-063 The Committee decisions page lists overrides only (2026-10-30)
+The committee wants to see where it went against the AI. The page now lists only marks
+overridden and eligibility decided otherwise than the AI found; accepting the AI's marks,
+committee-entered marks and decisions on checks the AI was unsure about are left out
+(they stay in the activity log and the exported sheet). Each firm's summary counts its
+overrides; the criterion filter lists only criteria with an override.
+
+## D-062 Per-item marks from parts are added up by Python; rule text follows the criteria (2026-10-30)
+- A CV criterion such as "Meeting criteria: 4 Marks; Prior experience with Government:
+  3 Marks" can give an item 3, 4 or 7. Asked to "list all possible sums" (v9), the AI
+  returned 4 and 7 and dropped 3, so a CV with only the experience part would be flagged
+  as an invalid mark. criteria_extraction_v10 asks for the parts as printed
+  (`item_mark_parts`), never their sums; `app/ingest/item_marks.py` works out every
+  total. Slabs (one of 3, 4 or 5) stay a plain list. Criteria read with v9 keep their
+  saved marks until the RFP is read again or the committee corrects the list.
+- Brought over from the eligibility-screening branch (commit 5dc77d7): saving
+  criteria redrafts the rule text from them unless the committee wrote its own, and
+  "Rebuild from the criteria" fills the box from the saved criteria for review
+  (`app/rule_text.py`).
+
+## D-061 Review screens: progress, wide tables, one "saved" notice, unsaved warning (2026-10-30)
+- Evidence: a bar shows how many counted items are decided, with "Next undecided item
+  →"; after a decision the page still moves on to the next one by itself.
+- Results: the header stays in view; rank and firm stay at the left and the total at
+  the right while the criteria scroll sideways.
+- Committee decisions: Expand all / Collapse all, a criterion filter, and a summary per
+  firm ("12 accepted · 1 overridden · 3 eligibility", worded by the API).
+- Every successful save shows the server's own message ("Decision recorded", "Criteria
+  saved" …) as one notice at the top right (`api.ts` → `notice.ts`).
+- Leaving a page, or moving to another item, with typed but unsaved changes asks first
+  (criteria, a decision's reason or marks, an eligibility decision, committee marks, a
+  new account). The UI uses React Router's data router for this (`main.tsx`); the
+  automatic move after a save is never asked about.
+- Pages that are not a project step have a "← Back to …" button to a fixed place.
+
+## D-060 Activity logs: exports recorded, filters, CSV download (2026-10-30)
+Follows D-059.
+- Exporting the evaluation sheet is recorded ("Evaluation sheet exported", with the
+  file name): it is where marks and decision logs leave the system. So is downloading
+  an activity log. Both show under a new area, "Exports".
+- Both activity logs filter by person and by date range (both days included, IST). A
+  value that is not an account or a YYYY-MM-DD date is ignored, not refused. Tabs and
+  page numbers keep the filters.
+- "Download CSV" gives every row matching the filters (up to 50,000), not one page:
+  `/activity.csv` and `/projects/{id}/audit.csv` (`app/export/activity_csv.py`). UTF-8
+  with a byte-order mark for Excel; a cell starting with = + - @ is prefixed with ' so
+  a spreadsheet never runs an uploaded name as a formula.
+
+## D-059 Activity logs of people's actions only, with sign-ins; a central log (2026-10-30)
+Refines D-057 and D-058 at the committee's request.
+- Activity logs show only what a person did, never what the AI or the worker did on its
+  own (extractions, job outcomes). They are read back from the tables that already
+  record each action (`app/db/q_activity.py`), one page of 50 at a time, by area.
+- Signing in and out is recorded (`audit_event`, no project).
+- A central "Activity" page (administrators, top bar) lists every action in every
+  project plus accounts and sign-ins; a project's Activity log shows its own areas.
+- The marks in Results and the evidence list keep their original highlights (D-058's
+  green/red there is dropped). Instead the decision form says who accepted (green) or
+  overrode (red) an item and when; after recording, the next item shows what was just
+  recorded. The Committee decisions page keeps its green/red.
+- Results: "Committee decisions" is the button at the bottom; the export button sits on
+  the right of the committee-marks row.
+
+## D-058 Committee decision log for all; activity log for administrators (2026-10-29)
+Refines D-057 at the committee's request.
+- The committee's decisions have their own page, "Committee decisions", firm by firm,
+  newest first: marks accepted or overridden, committee-entered marks and eligibility
+  decided, each with date and time, the AI's value, the reason and who decided. Every
+  account can see it; the Results page links to it at the bottom.
+- The rest of the trail (criteria and rule text; participants, firms and jobs; the
+  criteria as approved) is the "Activity log", for administrators only (403 for others).
+- Results and the evidence list show the decision: green = the AI's marks accepted, red
+  = overridden (a criterion is red when any of its items was overridden).
+- Overriding with the AI's own marks is refused with the reason: it is an acceptance.
+- Logs show the full date and time to the second.
+
+## D-057 The audit trail on screen too; every failed job attempt kept (2026-10-29)
+Supersedes D-055 in part: the committee wants to look at the trail without exporting.
+Each project has an "Audit trail" page (button beside the project title) that reads
+the same record as the export's "Audit log" sheet, one area at a time, newest first:
+criteria and rule text, participants, firms and jobs, committee marks, the
+committee's decisions on marks and eligibility, and the criteria as approved. It only
+reads; the Criteria and Participants pages stay free of history, as D-055 wanted.
+A job row keeps only its latest error, so a retried job lost its earlier failures. The
+worker now adds an `audit_event` by the system for every failed attempt (which job,
+which attempt, whether it will retry, the error), shown with the jobs on the page and
+in the export.
+
+## D-056 Named accounts created by an administrator (2026-10-29)
+The `.env` account was the one sign-in everyone shared (D-042, D-053), so the trail
+could not name a person. It stays as the built-in administrator; an administrator
+creates named accounts on the Users page: username, full name, role (Administrator,
+who may also manage accounts, or Committee member) and a password of at least 12
+characters, stored as a salted scrypt hash (`app/passwords.py`). As for the `.env`
+account, the sign-in name is kept in `app_user.email` (unique ignoring case, migration
+018); a named account is a row with a password hash. Accounts are switched off, never
+deleted; a switched-off account is signed out on its next call, and its role is read
+again on every call. The `.env` name is reserved, and the `.env` account never signs
+in as a named account of the same name. Creating, switching off or on and setting a
+password are audit events without a project. Only administrators reach
+`/api/v1/users`. There is no self-service password change yet.
+
+## D-055 The audit trail is shown in the export only (2026-10-06)
+Supersedes the "Change history" cards of D-053 and D-054 on the Criteria and
+Participants pages: they are removed, so those pages show only the work. Everything
+is still recorded as before and shown in the export's "Audit log" sheet (criteria
+setup; participants, firms and jobs; approved criteria; committee marks). The results
+page keeps its hover note on committee marks, and the eligibility grid its note on
+who started a firm's check.
+
+## D-054 Participants, firms, jobs and approvals join the audit trail (2026-10-01)
+Follows D-053 (migration 017).
+- Participants: ticking or unticking a firm records "Participant added / removed"
+  with who and when (no reason asked). Only real changes are recorded.
+- Firm list: "Firm added", "Firm renamed" (adding a known legal name with a new short
+  name used to overwrite it silently) and "Firm deleted". Before an unused firm is
+  deleted, each project it was ticked in records its removal, so the project's own
+  trail keeps it. Events keep the firm's name as it was.
+- Jobs: each job keeps who queued it and which action did (RFP uploaded, criteria
+  approved, bid uploaded, check eligibility again, evaluation started); automatic
+  checks are credited to the person whose action queued them. The eligibility grid
+  shows it on a firm's status.
+- Approval: the criteria as they stand are kept with the approved rule text, so each
+  run (which points to its approved version) can be traced to the exact criteria.
+Shown on the Participants page ("Change history") and in the export's "Audit log".
+
+## D-053 An audit trail for the project setup and committee marks (2026-10-01)
+Committee decisions on marks and eligibility were already append-only, but the setup
+around them was overwritten: criteria edits, draft rule text, committee marks and
+re-extractions left no trace, and every action was recorded as "Local user".
+Now (migration 016):
+- Who: the `.env` account stays the one sign-in (D-042), but it gets its own
+  `app_user` row on first sign-in and every action records it (`auth.current_user`).
+  When named accounts come, they are new rows and the trail names each person.
+- Criteria edits: each changed field is a `criterion_edit` row (old and new value),
+  by the committee or by a re-extraction (the AI). Leaving out an eligibility row is
+  recorded like any edit; no reason is asked for now.
+- Rule text: every save of a version's text is kept (`prompt_draft_save`), with who
+  created and approved each version.
+- Committee marks: every mark entered is kept (`manual_score_history`); changing a
+  saved mark needs a reason of at least 10 characters. The results page shows who
+  entered a mark and what it replaced on hover.
+- Extractions: what the AI returned each time is kept as JSON, with prompt version
+  and model.
+Shown on the Criteria page ("Change history") and as the export's "Audit log" sheet.
+Append-only is kept by the code (rule 10), as for the other decision tables.
+
 ## D-052 A presentation is always scored by the committee (2026-10-01)
 criteria_extraction_v8 dropped the stage and scorer definitions, so a presentation
 criterion came back as TECHNICAL, scored by the AI. v9 states them again. Storing a

@@ -1,11 +1,10 @@
 """API: pick firms, add a firm, upload or replace each bid."""
 from starlette.routing import Route
 
-from app import eligibility_actions, files, removal
+from app import eligibility_actions, files, participants, removal
 from app.db import q_bids, q_projects
 from app.db.connection import transaction
-from app.db.repo_setup import LOCAL_USER_ID
-from app.web.auth import check_csrf
+from app.web.auth import check_csrf, current_user
 from app.web.common import BadUpload, fail, ok, read_pdf_upload
 from app.web.routes_projects import project_head
 
@@ -34,8 +33,8 @@ async def set_participants(request):
     check_csrf(request)
     body = await request.json()
     with _db(request) as cur:
-        q_bids.set_participants(cur, str(request.path_params["tender_id"]),
-                                [str(v) for v in body.get("bidder_ids", [])])
+        participants.save(cur, str(request.path_params["tender_id"]),
+                          [str(v) for v in body.get("bidder_ids", [])], current_user(request))
     return ok(None, "Participants saved")
 
 
@@ -47,8 +46,9 @@ async def add_firm(request):
     if not legal:
         return fail("Enter the firm's legal name.")
     with _db(request) as cur:
-        bidder_id = q_bids.add_bidder(cur, legal, str(body.get("short_name") or "").strip())
-        q_bids.add_participant(cur, tender_id, bidder_id)
+        bidder_id = participants.add_firm(cur, tender_id, legal,
+                                          str(body.get("short_name") or "").strip(),
+                                          current_user(request))
     return ok({"bidder_id": bidder_id}, "Firm added", 201)
 
 
@@ -66,15 +66,18 @@ async def upload_bid(request):
     key = f"tenders/{sub['tender_id']}/bids/{submission_id}/{sha}.pdf"
     files.put(request.app.state.settings, key, data)
     with _db(request) as cur:
-        q_bids.add_file(cur, submission_id, name, key, sha, pages, LOCAL_USER_ID)
-        checking = eligibility_actions.queue_checks(cur, sub["tender_id"], [submission_id])
+        user_id = current_user(request)
+        q_bids.add_file(cur, submission_id, name, key, sha, pages, user_id)
+        checking = eligibility_actions.queue_checks(cur, sub["tender_id"],
+                                                    (user_id, "Bid uploaded"), [submission_id])
     return ok(None, "Bid uploaded; checking eligibility" if checking else "Bid uploaded", 201)
 
 
 async def delete_firm(request):
     check_csrf(request)
     with _db(request) as cur:
-        problem = removal.delete_firm(cur, str(request.path_params["bidder_id"]))
+        problem = removal.delete_firm(cur, str(request.path_params["bidder_id"]),
+                                      current_user(request))
     if problem:
         return fail(problem, 404 if problem == "Firm not found" else 409)
     return ok(None, "Firm deleted")
